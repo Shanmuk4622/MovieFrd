@@ -27,12 +27,13 @@ const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, on
       <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>
       <div className="flex space-x-4 overflow-x-auto overflow-y-hidden pb-4 pl-4 md:pl-0">
         {movies.map(movie => (
-          <MovieCard 
-            key={movie.id} 
-            movie={movie} 
-            userMovieLists={userMovieLists}
-            onListUpdate={onListUpdate}
-          />
+          <div key={movie.id} className="w-40 md:w-48 flex-shrink-0">
+            <MovieCard 
+              movie={movie} 
+              userMovieLists={userMovieLists}
+              onListUpdate={onListUpdate}
+            />
+          </div>
         ))}
         {/* Ghost element for end padding */}
         <div className="flex-shrink-0 w-1 md:w-0"></div>

@@ -1,14 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SearchIcon, UserIcon, PlayIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 import { View } from '../App';
 
 interface HeaderProps {
     setView: (view: View) => void;
+    onSearch: (query: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ setView }) => {
+const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
   const { user, signOut } = useAuth();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      onSearch(searchQuery.trim());
+    }
+  };
 
   return (
     <header className="bg-gray-900 bg-opacity-80 backdrop-blur-md sticky top-0 z-50 p-4 shadow-lg shadow-black/20">
@@ -25,6 +33,9 @@ const Header: React.FC<HeaderProps> = ({ setView }) => {
             type="text"
             placeholder="Search for movies or series..."
             className="w-full bg-gray-800 text-white placeholder-gray-400 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-red-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
           />
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
             <SearchIcon className="w-5 h-5" />

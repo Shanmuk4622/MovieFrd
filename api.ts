@@ -57,3 +57,23 @@ export const fetchMovieDetails = async (movieId: number): Promise<Movie | null> 
     return null;
   }
 };
+
+export const searchMovies = async (query: string): Promise<Movie[]> => {
+  if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY_HERE') {
+    console.warn("Please replace 'YOUR_TMDB_API_KEY_HERE' in api.ts with your actual TMDB API key.");
+    return [];
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to search movies on TMDB: ${response.statusText}`);
+    }
+    const data = await response.json();
+    const movies: TmdbMovie[] = data.results;
+    return movies.map(mapTmdbMovieToMovie);
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};

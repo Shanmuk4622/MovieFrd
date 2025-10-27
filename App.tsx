@@ -3,16 +3,24 @@ import Header from './components/Header';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
+import SearchResults from './components/SearchResults';
 import { useAuth } from './contexts/AuthContext';
 import { UserMovieList, getUserMovieLists } from './supabaseApi';
+import { Movie } from './types';
+import { searchMovies } from './api';
 
-export type View = 'dashboard' | 'profile';
+export type View = 'dashboard' | 'profile' | 'search';
 
 const App: React.FC = () => {
   const { session, user } = useAuth();
   const [view, setView] = useState<View>('dashboard');
   const [userMovieLists, setUserMovieLists] = useState<UserMovieList[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // State for search functionality
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Movie[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     if (session && user) {
@@ -22,10 +30,41 @@ const App: React.FC = () => {
         .catch(error => console.error("Failed to fetch user movie lists", error))
         .finally(() => setLoading(false));
     } else {
-      // If there's no session, we're not loading any user-specific data.
       setLoading(false);
     }
   }, [session, user]);
+  
+  const handleListUpdate = () => {
+    if (user) {
+        getUserMovieLists(user.id).then(lists => setUserMovieLists(lists || []));
+    }
+  };
+  
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) return;
+
+    setView('search');
+    setSearchQuery(query);
+    setIsSearching(true);
+    
+    try {
+        const results = await searchMovies(query);
+        setSearchResults(results);
+    } catch (error) {
+        console.error("Failed to search movies", error);
+        setSearchResults([]);
+    } finally {
+        setIsSearching(false);
+    }
+  };
+
+  const handleSetView = (newView: View) => {
+    if (newView !== 'search') {
+        setSearchQuery('');
+        setSearchResults([]);
+    }
+    setView(newView);
+  };
   
   if (!session) {
     return <Auth />;
@@ -39,26 +78,30 @@ const App: React.FC = () => {
     );
   }
 
-  const handleListUpdate = () => {
-    if (user) {
-        getUserMovieLists(user.id).then(lists => setUserMovieLists(lists || []));
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-900">
-      <Header setView={setView} />
+      <Header setView={handleSetView} onSearch={handleSearch} />
       <main className="container mx-auto py-8">
-        {view === 'dashboard' ? (
+        {view === 'dashboard' && (
           <Dashboard 
             userMovieLists={userMovieLists} 
             onListUpdate={handleListUpdate} 
           />
-        ) : (
+        )}
+        {view === 'profile' && (
           <Profile 
             userMovieLists={userMovieLists} 
             onListUpdate={handleListUpdate} 
           />
+        )}
+        {view === 'search' && (
+            <SearchResults
+                query={searchQuery}
+                movies={searchResults}
+                userMovieLists={userMovieLists}
+                onListUpdate={handleListUpdate}
+                isLoading={isSearching}
+            />
         )}
       </main>
     </div>

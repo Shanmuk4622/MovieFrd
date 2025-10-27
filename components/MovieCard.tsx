@@ -42,8 +42,8 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
   };
 
   return (
-    <div className="group relative flex-shrink-0 w-40 md:w-48 rounded-lg overflow-hidden shadow-lg transform transition-transform duration-300 hover:scale-105 hover:z-10 cursor-pointer">
-      <img src={movie.posterUrl} alt={movie.title} className="w-full h-60 md:h-72 object-cover" />
+    <div className="group relative flex-shrink-0 w-full rounded-lg overflow-hidden shadow-lg transform transition-transform duration-300 hover:scale-105 hover:z-10 cursor-pointer aspect-[2/3]">
+      <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
       
       {/* Title and Rating */}
