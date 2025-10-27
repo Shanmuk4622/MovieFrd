@@ -1,0 +1,5 @@
+{
+  "name": "MovieFrd: Movie Discovery Dashboard",
+  "description": "A visually appealing movie discovery dashboard for college students to find popular and trending movies. This serves as the main discovery page for the MovieFrd community app, showcasing popular films, local trends, and friend activities in a modern, dark-themed interface.",
+  "requestFramePermissions": []
+}

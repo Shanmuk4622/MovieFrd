@@ -1,0 +1,44 @@
+import React from 'react';
+import { Movie } from '../types';
+import MovieCard from './MovieCard';
+import { UserMovieList } from '../supabaseApi';
+
+interface MovieListProps {
+  title: string;
+  movies: Movie[];
+  userMovieLists: UserMovieList[];
+  onListUpdate: () => void;
+}
+
+const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, onListUpdate }) => {
+  if (movies.length === 0) {
+    return (
+      <section className="mb-12">
+        <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>
+        <div className="px-4 md:px-0 text-gray-400">
+          This list is currently empty.
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mb-12">
+      <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>
+      <div className="flex space-x-4 overflow-x-auto overflow-y-hidden pb-4 pl-4 md:pl-0">
+        {movies.map(movie => (
+          <MovieCard 
+            key={movie.id} 
+            movie={movie} 
+            userMovieLists={userMovieLists}
+            onListUpdate={onListUpdate}
+          />
+        ))}
+        {/* Ghost element for end padding */}
+        <div className="flex-shrink-0 w-1 md:w-0"></div>
+      </div>
+    </section>
+  );
+};
+
+export default MovieList;
