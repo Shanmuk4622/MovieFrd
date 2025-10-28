@@ -8,9 +8,10 @@ interface MovieCardProps {
   movie: Movie;
   userMovieLists: UserMovieList[];
   onListUpdate: () => void;
+  onSelectMovie: (movieId: number) => void;
 }
 
-const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpdate }) => {
+const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpdate, onSelectMovie }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
@@ -42,7 +43,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
   };
 
   return (
-    <div className="group relative flex-shrink-0 w-full rounded-lg overflow-hidden shadow-lg transform transition-transform duration-300 hover:scale-105 hover:z-10 cursor-pointer aspect-[2/3]">
+    <div 
+      className="group relative flex-shrink-0 w-full rounded-lg overflow-hidden shadow-lg transform transition-transform duration-300 hover:scale-105 hover:z-10 cursor-pointer aspect-[2/3]"
+      onClick={() => onSelectMovie(movie.id)}
+    >
       <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
       
@@ -56,7 +60,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
       </div>
        
       {/* Hover Overlay with Actions */}
-      <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+      <div 
+        className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        onClick={(e) => e.stopPropagation()} // Prevent card click when clicking overlay buttons
+      >
         <h3 className="font-bold text-base text-center line-clamp-3 mb-3">{movie.title}</h3>
         <div className="space-y-2 w-full">
             {isInWatched ? (

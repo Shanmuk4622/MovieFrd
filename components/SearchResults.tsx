@@ -9,9 +9,10 @@ interface SearchResultsProps {
   userMovieLists: UserMovieList[];
   onListUpdate: () => void;
   isLoading: boolean;
+  onSelectMovie: (movieId: number) => void;
 }
 
-const SearchResults: React.FC<SearchResultsProps> = ({ query, movies, userMovieLists, onListUpdate, isLoading }) => {
+const SearchResults: React.FC<SearchResultsProps> = ({ query, movies, userMovieLists, onListUpdate, isLoading, onSelectMovie }) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8 min-h-[400px]">
@@ -34,6 +35,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, movies, userMovieL
                     movie={movie} 
                     userMovieLists={userMovieLists}
                     onListUpdate={onListUpdate}
+                    onSelectMovie={onSelectMovie}
                 />
             </div>
           ))}

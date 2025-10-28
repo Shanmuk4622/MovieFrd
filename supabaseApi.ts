@@ -1,11 +1,8 @@
-import { supabase } from './supabaseClient';
-import { User } from '@supabase/supabase-js';
 
-export interface Profile {
-  id: string;
-  username: string;
-  avatar_url: string | null;
-}
+
+import { supabase } from './supabaseClient';
+import { User, RealtimeChannel } from '@supabase/supabase-js';
+import { ChatRoom, ChatMessage, Profile, Friendship, FriendshipStatus, DirectMessage } from './types';
 
 export interface UserMovieList {
   id: number;
@@ -65,4 +62,212 @@ export const removeMovieFromList = async (userId: string, movieId: number) => {
         throw error;
     }
     return data;
+};
+
+// --- Chat Functions ---
+
+export const getChatRooms = async (): Promise<ChatRoom[]> => {
+  const { data, error } = await supabase
+    .from('chat_rooms')
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching chat rooms:', error);
+    return [];
+  }
+  return data || [];
+};
+
+export const createChatRoom = async (
+  name: string, 
+  description: string | null, 
+  isAnonymous: boolean
+): Promise<ChatRoom> => {
+  const { data, error } = await supabase
+    .from('chat_rooms')
+    .insert({ name, description, is_anonymous: isAnonymous })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating chat room:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const getRoomMessages = async (roomId: number): Promise<ChatMessage[]> => {
+  const { data, error } = await supabase
+    .from('room_messages')
+    .select('*, profiles(*)')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching messages for room:', error);
+    return [];
+  }
+  return data as ChatMessage[] || [];
+};
+
+export const sendMessage = async (roomId: number, senderId: string, content: string) => {
+  const { data, error } = await supabase
+    .from('room_messages')
+    .insert({ room_id: roomId, sender_id: senderId, content });
+  
+  if (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const subscribeToRoomMessages = (
+  roomId: number, 
+  onNewMessage: (message: ChatMessage) => void
+): RealtimeChannel => {
+  const channel = supabase.channel(`room-${roomId}`);
+  
+  channel
+    .on<ChatMessage>(
+      'postgres_changes',
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'room_messages', 
+        filter: `room_id=eq.${roomId}` 
+      },
+      (payload) => {
+        onNewMessage(payload.new as ChatMessage);
+      }
+    )
+    .subscribe();
+
+  return channel;
+};
+
+
+// --- Friendship and DM Functions ---
+
+export const searchUsers = async (query: string, currentUserId: string): Promise<Profile[]> => {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('username', `%${query}%`)
+        .not('id', 'eq', currentUserId)
+        .limit(10);
+
+    if (error) {
+        console.error("Error searching users:", error);
+        return [];
+    }
+    return data || [];
+};
+
+export const getFriendships = async (userId: string): Promise<Friendship[]> => {
+    const { data, error } = await supabase
+        .from('friendships')
+        .select('*, requester:requester_id(*), addressee:addressee_id(*)')
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+    
+    if (error) {
+        console.error("Error fetching friendships:", error);
+        return [];
+    }
+    return data as any[] || [];
+};
+
+export const sendFriendRequest = async (requesterId: string, addresseeId: string) => {
+    const { data, error } = await supabase
+        .from('friendships')
+        .insert({ requester_id: requesterId, addressee_id: addresseeId, status: 'pending' });
+
+    if (error) {
+        console.error("Error sending friend request:", error);
+        throw error;
+    }
+    return data;
+};
+
+export const updateFriendship = async (friendshipId: number, status: FriendshipStatus) => {
+    const { data, error } = await supabase
+        .from('friendships')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', friendshipId);
+
+    if (error) {
+        console.error("Error updating friendship:", error);
+        throw error;
+    }
+    return data;
+};
+
+export const removeFriendship = async (friendshipId: number) => {
+    const { data, error } = await supabase
+        .from('friendships')
+        .delete()
+        .eq('id', friendshipId);
+
+    if (error) {
+        console.error("Error removing friendship:", error);
+        throw error;
+    }
+    return data;
+};
+
+export const getDirectMessages = async (userId1: string, userId2: string): Promise<DirectMessage[]> => {
+    const { data, error } = await supabase
+        .from('direct_messages')
+        .select('*, profiles:sender_id(*)')
+        .or(`(sender_id.eq.${userId1},receiver_id.eq.${userId2}),(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        console.error("Error fetching DMs:", error);
+        return [];
+    }
+    return data as any[] || [];
+};
+
+export const sendDirectMessage = async (senderId: string, receiverId: string, content: string) => {
+    const { data, error } = await supabase
+        .from('direct_messages')
+        .insert({ sender_id: senderId, receiver_id: receiverId, content });
+    
+    if (error) {
+        console.error("Error sending DM:", error);
+        throw error;
+    }
+    return data;
+};
+
+export const subscribeToDirectMessages = (
+  userId1: string,
+  userId2: string,
+  onNewMessage: (message: DirectMessage) => void
+): RealtimeChannel => {
+  const channel = supabase.channel(`dm-${[userId1, userId2].sort().join('-')}`);
+  
+  channel
+    .on<DirectMessage>(
+      'postgres_changes',
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'direct_messages',
+        filter: `sender_id=in.(${userId1},${userId2})`
+      },
+      (payload) => {
+        const newMessage = payload.new as DirectMessage;
+        // Only process if the message is part of this specific conversation
+        if ((newMessage.sender_id === userId1 && newMessage.receiver_id === userId2) ||
+            (newMessage.sender_id === userId2 && newMessage.receiver_id === userId1)) {
+            onNewMessage(newMessage);
+        }
+      }
+    )
+    .subscribe();
+
+  return channel;
 };

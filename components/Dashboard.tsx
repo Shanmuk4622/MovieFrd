@@ -36,9 +36,10 @@ const mockActivities: UserActivity[] = [
 interface DashboardProps {
   userMovieLists: UserMovieList[];
   onListUpdate: () => void;
+  onSelectMovie: (movieId: number) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
 
@@ -62,12 +63,14 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate }) =
           movies={popularMovies} 
           userMovieLists={userMovieLists}
           onListUpdate={onListUpdate}
+          onSelectMovie={onSelectMovie}
         />
         <MovieList 
           title="Trending at VITAP" 
           movies={trendingMovies} 
           userMovieLists={userMovieLists}
           onListUpdate={onListUpdate}
+          onSelectMovie={onSelectMovie}
         />
       </div>
       <div className="lg:col-span-1">

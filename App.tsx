@@ -4,12 +4,14 @@ import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
 import SearchResults from './components/SearchResults';
+import Chat from './components/Chat';
+import MovieDetail from './components/MovieDetail'; // New import
 import { useAuth } from './contexts/AuthContext';
 import { UserMovieList, getUserMovieLists } from './supabaseApi';
 import { Movie } from './types';
 import { searchMovies } from './api';
 
-export type View = 'dashboard' | 'profile' | 'search';
+export type View = 'dashboard' | 'profile' | 'search' | 'chat' | 'movieDetail';
 
 const App: React.FC = () => {
   const { session, user } = useAuth();
@@ -21,6 +23,9 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  
+  // State for movie detail view
+  const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
 
   useEffect(() => {
     if (session && user) {
@@ -57,11 +62,19 @@ const App: React.FC = () => {
         setIsSearching(false);
     }
   };
+  
+  const handleSelectMovie = (movieId: number) => {
+    setSelectedMovieId(movieId);
+    setView('movieDetail');
+  };
 
   const handleSetView = (newView: View) => {
     if (newView !== 'search') {
         setSearchQuery('');
         setSearchResults([]);
+    }
+    if (newView !== 'movieDetail') {
+        setSelectedMovieId(null);
     }
     setView(newView);
   };
@@ -70,7 +83,7 @@ const App: React.FC = () => {
     return <Auth />;
   }
   
-  if (loading) {
+  if (loading && !selectedMovieId) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
@@ -78,31 +91,43 @@ const App: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-900">
-      <Header setView={handleSetView} onSearch={handleSearch} />
-      <main className="container mx-auto py-8">
-        {view === 'dashboard' && (
-          <Dashboard 
-            userMovieLists={userMovieLists} 
-            onListUpdate={handleListUpdate} 
-          />
-        )}
-        {view === 'profile' && (
-          <Profile 
-            userMovieLists={userMovieLists} 
-            onListUpdate={handleListUpdate} 
-          />
-        )}
-        {view === 'search' && (
-            <SearchResults
+  const renderContent = () => {
+    switch(view) {
+        case 'dashboard':
+            return <Dashboard 
+                userMovieLists={userMovieLists} 
+                onListUpdate={handleListUpdate}
+                onSelectMovie={handleSelectMovie} 
+            />;
+        case 'profile':
+            return <Profile 
+                userMovieLists={userMovieLists} 
+                onListUpdate={handleListUpdate}
+                onSelectMovie={handleSelectMovie}
+            />;
+        case 'search':
+            return <SearchResults
                 query={searchQuery}
                 movies={searchResults}
                 userMovieLists={userMovieLists}
                 onListUpdate={handleListUpdate}
                 isLoading={isSearching}
-            />
-        )}
+                onSelectMovie={handleSelectMovie}
+            />;
+        case 'chat':
+            return <Chat />;
+        case 'movieDetail':
+            return selectedMovieId ? <MovieDetail movieId={selectedMovieId} setView={handleSetView} /> : null;
+        default:
+            return null;
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900">
+      <Header setView={handleSetView} onSearch={handleSearch} />
+      <main className="container mx-auto py-8">
+        {renderContent()}
       </main>
     </div>
   );

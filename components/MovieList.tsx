@@ -8,9 +8,10 @@ interface MovieListProps {
   movies: Movie[];
   userMovieLists: UserMovieList[];
   onListUpdate: () => void;
+  onSelectMovie: (movieId: number) => void;
 }
 
-const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, onListUpdate }) => {
+const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, onListUpdate, onSelectMovie }) => {
   if (movies.length === 0) {
     return (
       <section className="mb-12">
@@ -32,6 +33,7 @@ const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, on
               movie={movie} 
               userMovieLists={userMovieLists}
               onListUpdate={onListUpdate}
+              onSelectMovie={onSelectMovie}
             />
           </div>
         ))}

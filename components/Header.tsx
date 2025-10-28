@@ -15,6 +15,7 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
       onSearch(searchQuery.trim());
+      setSearchQuery('');
     }
   };
 
@@ -26,42 +27,50 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
             onClick={() => setView('dashboard')}
         >
           <PlayIcon className="w-8 h-8 text-red-500" />
-          <h1 className="text-2xl font-bold tracking-wider text-white">MovieFrd</h1>
+          <span className="text-xl font-bold tracking-wider">MovieFrd</span>
         </div>
-        <div className="hidden md:flex flex-1 max-w-lg items-center relative">
-          <input
-            type="text"
-            placeholder="Search for movies or series..."
-            className="w-full bg-gray-800 text-white placeholder-gray-400 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-red-500"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-          />
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-            <SearchIcon className="w-5 h-5" />
+        
+        <div className="flex-1 flex justify-center px-8">
+          <div className="relative w-full max-w-lg">
+            <input
+              type="text"
+              placeholder="Search for a movie..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="w-full bg-gray-800 text-white placeholder-gray-500 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2">
+              <SearchIcon className="w-5 h-5 text-gray-400" />
+            </div>
           </div>
         </div>
+
         <div className="flex items-center space-x-4">
-            <button className="md:hidden p-2 rounded-full hover:bg-gray-700">
-                <SearchIcon className="w-6 h-6 text-gray-300" />
-            </button>
-            {user ? (
-                 <div className="flex items-center space-x-2">
-                    <button 
-                        onClick={() => setView('profile')}
-                        className="text-sm font-medium hidden sm:inline cursor-pointer hover:text-red-400"
-                    >
-                        {user.user_metadata.username || user.email}
-                    </button>
-                    <button onClick={signOut} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full text-sm transition-colors">
-                        Sign Out
-                    </button>
-                </div>
-            ) : (
-                <button className="p-2 rounded-full hover:bg-gray-700">
-                    <UserIcon className="w-8 h-8 text-gray-300" />
-                </button>
-            )}
+          <button
+            onClick={() => setView('chat')}
+            className="hidden sm:block text-sm font-semibold hover:text-red-500 transition-colors"
+          >
+            Chat
+          </button>
+          {user ? (
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => setView('profile')}
+                className="text-sm font-semibold hover:text-red-500 transition-colors truncate max-w-[100px] md:max-w-xs"
+              >
+                {user.user_metadata.username || user.email}
+              </button>
+              <button
+                onClick={() => signOut()}
+                className="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1.5 px-3 rounded-md transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <UserIcon className="w-8 h-8 text-gray-400" />
+          )}
         </div>
       </div>
     </header>

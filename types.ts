@@ -1,4 +1,6 @@
 
+
+
 export interface Movie {
   id: number;
   title: string;
@@ -13,4 +15,67 @@ export interface UserActivity {
   action: 'watched' | 'added to watchlist';
   movie: Movie;
   timestamp: string;
+}
+
+export interface ChatRoom {
+  id: number;
+  name: string;
+  description: string | null;
+  is_anonymous: boolean;
+}
+
+export interface ChatMessage {
+  id: number;
+  room_id: number;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  profiles: Profile | null;
+}
+
+// --- New Types for Friendship and DMs ---
+
+export type FriendshipStatus = 'pending' | 'accepted' | 'declined' | 'blocked';
+
+export interface Profile {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+}
+
+export interface Friendship {
+  id: number;
+  requester_id: string;
+  addressee_id: string;
+  status: FriendshipStatus;
+  // The profiles object will be joined in our queries
+  requester: Profile;
+  addressee: Profile;
+}
+
+export interface DirectMessage {
+  id: number;
+  sender_id: string;
+  receiver_id: string;
+  content: string;
+  created_at: string;
+  // This will be joined for displaying sender info
+  profiles: Profile | null;
+}
+
+// --- Types for Movie Detail View ---
+
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profileUrl: string | null;
+}
+
+export interface MovieDetail extends Movie {
+  overview: string;
+  releaseDate: string;
+  genres: { id: number; name: string }[];
+  cast: CastMember[];
+  trailerUrl: string | null;
 }
