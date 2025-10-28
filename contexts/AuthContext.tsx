@@ -1,10 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
+import { getProfile } from '../supabaseApi';
+import { Profile } from '../types';
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
+  profile: Profile | null;
+  refreshProfile: () => Promise<void>;
   signUp: (args: any) => Promise<{ error: AuthError | null }>;
   signIn: (args: any) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
@@ -15,21 +19,40 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const refreshProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        const profileData = await getProfile(user.id);
+        setProfile(profileData);
+    }
+  };
+
   useEffect(() => {
-    const getSession = async () => {
+    const getSessionAndProfile = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user ?? null);
+        if (session?.user) {
+            const profileData = await getProfile(session.user.id);
+            setProfile(profileData);
+        }
         setLoading(false);
     }
     
-    getSession();
+    getSessionAndProfile();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+          const profileData = await getProfile(session.user.id);
+          setProfile(profileData);
+      } else {
+          setProfile(null);
+      }
     });
 
     return () => {
@@ -40,6 +63,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const value = {
     session,
     user,
+    profile,
+    refreshProfile,
     signUp: (args: any) => supabase.auth.signUp(args),
     signIn: (args: any) => supabase.auth.signInWithPassword(args),
     signOut: () => supabase.auth.signOut(),

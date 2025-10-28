@@ -1,5 +1,3 @@
-
-
 import { supabase } from './supabaseClient';
 import { User, RealtimeChannel } from '@supabase/supabase-js';
 import { ChatRoom, ChatMessage, Profile, Friendship, FriendshipStatus, DirectMessage } from './types';
@@ -23,6 +21,40 @@ export const getProfile = async (userId: string): Promise<Profile | null> => {
     return null;
   }
   return data;
+};
+
+export const uploadAvatar = async (userId: string, file: File) => {
+  const fileExt = file.name.split('.').pop();
+  const filePath = `${userId}/avatar-${Date.now()}.${fileExt}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file, { upsert: true });
+
+  if (uploadError) {
+    console.error('Error uploading avatar:', uploadError);
+    throw uploadError;
+  }
+
+  const { data } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath);
+  
+  const publicUrl = data.publicUrl;
+
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ avatar_url: publicUrl })
+    .eq('id', userId);
+
+  if (updateError) {
+    console.error('Error updating profile with new avatar URL:', updateError);
+    // Attempt to remove the uploaded file if the profile update fails
+    await supabase.storage.from('avatars').remove([filePath]);
+    throw updateError;
+  }
+
+  return publicUrl;
 };
 
 export const getUserMovieLists = async (userId: string): Promise<UserMovieList[]> => {

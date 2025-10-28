@@ -9,7 +9,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -55,11 +55,18 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
           </button>
           {user ? (
             <div className="flex items-center space-x-3">
-              <button 
+              <button
                 onClick={() => setView('profile')}
-                className="text-sm font-semibold hover:text-red-500 transition-colors truncate max-w-[100px] md:max-w-xs"
+                className="flex items-center space-x-2 group"
               >
-                {user.user_metadata.username || user.email}
+                {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="Profile" className="w-8 h-8 rounded-full object-cover"/>
+                ) : (
+                    <UserIcon className="w-8 h-8 text-gray-400 group-hover:text-red-500/80 transition-colors" />
+                )}
+                <span className="hidden md:inline truncate max-w-[100px] text-white group-hover:text-red-500 transition-colors text-sm font-semibold">
+                    {profile?.username || user.email}
+                </span>
               </button>
               <button
                 onClick={() => signOut()}

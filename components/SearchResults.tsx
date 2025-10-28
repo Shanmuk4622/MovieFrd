@@ -2,6 +2,7 @@ import React from 'react';
 import { Movie } from '../types';
 import MovieCard from './MovieCard';
 import { UserMovieList } from '../supabaseApi';
+import { SearchIcon } from './icons';
 
 interface SearchResultsProps {
   query: string;
@@ -41,7 +42,8 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, movies, userMovieL
           ))}
         </div>
       ) : (
-        <div className="text-center text-gray-400 p-8 bg-gray-800/50 rounded-lg min-h-[400px] flex flex-col justify-center items-center">
+        <div className="text-center text-gray-400 p-8 bg-gray-800/50 rounded-lg min-h-[400px] flex flex-col justify-center items-center animate-fade-in">
+            <SearchIcon className="w-24 h-24 text-gray-600 mb-6" />
             <h3 className="text-2xl font-bold text-white mb-2">No movies found</h3>
             <p className="max-w-md">We couldn't find any movies matching "{query}". Try checking the spelling or searching for a different title.</p>
         </div>

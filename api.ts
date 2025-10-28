@@ -2,7 +2,7 @@ import { Movie, MovieDetail, CastMember } from './types';
 
 // IMPORTANT: Replace this with your actual TMDB API key.
 // You can get one for free by signing up at https://www.themoviedb.org/.
-const TMDB_API_KEY = 'YOUR_TMDB_API_KEY_HERE'; 
+const TMDB_API_KEY = '0d11b033f7b48e7c79d20ed4fc1b7281'; 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const IMAGE_BASE_URL_W200 = 'https://image.tmdb.org/t/p/w200';
@@ -46,12 +46,8 @@ const mapTmdbMovieToMovie = (tmdbMovie: TmdbMovie): Movie => ({
   rating: tmdbMovie.vote_average,
 });
 
+// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const fetchMovies = async (endpoint: string): Promise<Movie[]> => {
-  if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY_HERE') {
-    console.warn("Please replace 'YOUR_TMDB_API_KEY_HERE' in api.ts with your actual TMDB API key.");
-    return [];
-  }
-
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}?api_key=${TMDB_API_KEY}`);
     if (!response.ok) {
@@ -66,11 +62,8 @@ export const fetchMovies = async (endpoint: string): Promise<Movie[]> => {
   }
 };
 
+// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const fetchMovieDetails = async (movieId: number): Promise<Movie | null> => {
-  if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY_HERE') {
-    return null;
-  }
-
   try {
     const response = await fetch(`${API_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}`);
     if (!response.ok) {
@@ -84,12 +77,8 @@ export const fetchMovieDetails = async (movieId: number): Promise<Movie | null> 
   }
 };
 
+// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const searchMovies = async (query: string): Promise<Movie[]> => {
-  if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY_HERE') {
-    console.warn("Please replace 'YOUR_TMDB_API_KEY_HERE' in api.ts with your actual TMDB API key.");
-    return [];
-  }
-
   try {
     const response = await fetch(`${API_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`);
     if (!response.ok) {
@@ -105,11 +94,8 @@ export const searchMovies = async (query: string): Promise<Movie[]> => {
 };
 
 
+// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieDetail | null> => {
-    if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY_HERE') {
-        return null;
-    }
-
     try {
         const [detailsRes, creditsRes, videosRes] = await Promise.all([
             fetch(`${API_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}`),
