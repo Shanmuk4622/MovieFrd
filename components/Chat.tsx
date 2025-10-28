@@ -3,7 +3,8 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import { 
     getChatRooms, createChatRoom, getRoomMessages, sendMessage, subscribeToRoomMessages,
-    getFriendships, getDirectMessages, sendDirectMessage, subscribeToDirectMessages, getProfile
+    getFriendships, getDirectMessages, sendDirectMessage, subscribeToDirectMessages, getProfile,
+    markMessagesAsSeen
 } from '../supabaseApi';
 import { ChatRoom, ChatMessage, Friendship, Profile, DirectMessage } from '../types';
 import RoomSidebar from './RoomSidebar';
@@ -23,7 +24,6 @@ const Chat: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [profileCache, setProfileCache] = useState<Map<string, Profile>>(new Map());
-  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAnonymity, setModalAnonymity] = useState(false);
@@ -82,6 +82,15 @@ const Chat: React.FC = () => {
     setIsSidebarOpen(false); // Close sidebar on mobile after selection
   }
 
+  const handleMarkMessagesAsSeen = useCallback(async (messageIds: number[]) => {
+      if (!user || !activeConversation || messageIds.length === 0) return;
+      
+      const type = activeConversation.type === 'room' ? 'room' : 'dm';
+      await markMessagesAsSeen(messageIds, user.id, type);
+
+  }, [user, activeConversation]);
+
+
   useEffect(() => {
     if (!activeConversation || !user || !profile) return;
 
@@ -90,17 +99,27 @@ const Chat: React.FC = () => {
     typingTimers.current.clear();
 
     let subscription: RealtimeChannel;
-
-    const handleNewMessage = async (newMessage: ChatMessage | DirectMessage) => {
-        let profile = profileCache.get(newMessage.sender_id);
-        if (!profile) {
-            profile = await getProfile(newMessage.sender_id);
-            if (profile) {
-                setProfileCache(prev => new Map(prev).set(profile!.id, profile!));
+    
+    const handleMessageEvent = async (payload: any) => {
+        const { eventType, new: newMessage } = payload;
+        
+        // Ensure profile is cached for sender
+        if (!profileCache.has(newMessage.sender_id)) {
+            const senderProfile = await getProfile(newMessage.sender_id);
+            if (senderProfile) {
+                setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
+                newMessage.profiles = senderProfile;
             }
+        } else {
+            newMessage.profiles = profileCache.get(newMessage.sender_id) || null;
         }
-        newMessage.profiles = profile || null;
-        setMessages((prev) => [...prev, newMessage]);
+
+        if (eventType === 'INSERT') {
+            setMessages(prev => [...prev, newMessage]);
+        }
+        if (eventType === 'UPDATE') {
+            setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
+        }
     };
 
     const handleTypingEvent = (payload: { userId: string, username: string }) => {
@@ -135,11 +154,11 @@ const Chat: React.FC = () => {
       if (activeConversation.type === 'room') {
         const initialMessages = await getRoomMessages(activeConversation.id);
         setMessages(initialMessages);
-        subscription = subscribeToRoomMessages(activeConversation.id, handleNewMessage);
+        subscription = subscribeToRoomMessages(activeConversation.id, handleMessageEvent);
       } else { // DM
         const initialMessages = await getDirectMessages(user.id, activeConversation.id);
         setMessages(initialMessages);
-        subscription = subscribeToDirectMessages(user.id, activeConversation.id, handleNewMessage);
+        subscription = subscribeToDirectMessages(user.id, activeConversation.id, handleMessageEvent);
       }
 
       subscription
@@ -205,7 +224,7 @@ const Chat: React.FC = () => {
             activeConversation={activeConversation} 
             setActiveConversation={handleSelectConversation}
             onOpenCreateRoom={handleOpenCreateRoom}
-            unreadCounts={unreadCounts}
+            unreadCounts={{}} // unreadCounts prop removed for now
             isOpen={isSidebarOpen}
             setIsOpen={setIsSidebarOpen}
             isLoading={loading}
@@ -221,6 +240,7 @@ const Chat: React.FC = () => {
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={() => setIsSidebarOpen(true)}
                 typingUsers={typingUsers}
+                onMarkAsSeen={handleMarkMessagesAsSeen}
               />
               <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />
             </>

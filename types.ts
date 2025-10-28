@@ -1,6 +1,7 @@
 
 
 
+
 export interface Movie {
   id: number;
   title: string;
@@ -31,6 +32,7 @@ export interface ChatMessage {
   content: string;
   created_at: string;
   profiles: Profile | null;
+  seen_by?: string[];
 }
 
 // --- New Types for Friendship and DMs ---
@@ -61,6 +63,7 @@ export interface DirectMessage {
   created_at: string;
   // This will be joined for displaying sender info
   profiles: Profile | null;
+  seen_by?: string[];
 }
 
 // --- Types for Movie Detail View ---

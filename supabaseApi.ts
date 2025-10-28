@@ -157,22 +157,20 @@ export const sendMessage = async (roomId: number, senderId: string, content: str
 
 export const subscribeToRoomMessages = (
   roomId: number, 
-  onNewMessage: (message: ChatMessage) => void
+  onMessageEvent: (payload: any) => void
 ): RealtimeChannel => {
   const channel = supabase.channel(`room-${roomId}`);
   
   channel
-    .on<ChatMessage>(
+    .on(
       'postgres_changes',
       { 
-        event: 'INSERT', 
+        event: '*', 
         schema: 'public', 
         table: 'room_messages', 
         filter: `room_id=eq.${roomId}` 
       },
-      (payload) => {
-        onNewMessage(payload.new as ChatMessage);
-      }
+      onMessageEvent
     )
     .subscribe();
 
@@ -277,29 +275,41 @@ export const sendDirectMessage = async (senderId: string, receiverId: string, co
 export const subscribeToDirectMessages = (
   userId1: string,
   userId2: string,
-  onNewMessage: (message: DirectMessage) => void
+  onMessageEvent: (payload: any) => void
 ): RealtimeChannel => {
   const channel = supabase.channel(`dm-${[userId1, userId2].sort().join('-')}`);
   
   channel
-    .on<DirectMessage>(
+    .on(
       'postgres_changes',
       { 
-        event: 'INSERT', 
+        event: '*', 
         schema: 'public', 
         table: 'direct_messages',
         filter: `sender_id=in.(${userId1},${userId2})`
       },
       (payload) => {
-        const newMessage = payload.new as DirectMessage;
+        const message = payload.new as DirectMessage;
         // Only process if the message is part of this specific conversation
-        if ((newMessage.sender_id === userId1 && newMessage.receiver_id === userId2) ||
-            (newMessage.sender_id === userId2 && newMessage.receiver_id === userId1)) {
-            onNewMessage(newMessage);
+        if ((message.sender_id === userId1 && message.receiver_id === userId2) ||
+            (message.sender_id === userId2 && message.receiver_id === userId1)) {
+            onMessageEvent(payload);
         }
       }
     )
     .subscribe();
 
   return channel;
+};
+
+export const markMessagesAsSeen = async (messageIds: number[], userId: string, type: 'room' | 'dm') => {
+    const { error } = await supabase.rpc('mark_messages_as_seen', {
+        message_ids_to_update: messageIds,
+        user_id_to_add: userId,
+        message_type: type
+    });
+
+    if (error) {
+        console.error(`Error marking messages as seen for type ${type}:`, error);
+    }
 };
