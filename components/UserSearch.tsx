@@ -29,8 +29,11 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUser, friendships, onFri
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
 
   const debouncedSearch = useCallback(async (searchQuery: string) => {
+    setError(null);
     if (searchQuery.length < 3) {
       setResults([]);
       return;
@@ -44,11 +47,20 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUser, friendships, onFri
   useDebounce(query, 500, debouncedSearch);
 
   const handleSendRequest = async (addresseeId: string) => {
+    setError(null);
+    setSendingRequestId(addresseeId);
     try {
       await sendFriendRequest(currentUser.id, addresseeId);
       onFriendAction(); // Refresh friendships in parent
-    } catch (error) {
-      console.error("Failed to send friend request", error);
+    } catch (err: any) {
+      console.error("Failed to send friend request", err);
+      if (err.message && err.message.includes('security policy')) {
+          setError("Database permission denied. Please check Row Level Security policies for the 'friendships' table.");
+      } else {
+          setError(err.message || "An unknown error occurred while sending the friend request.");
+      }
+    } finally {
+        setSendingRequestId(null);
     }
   };
 
@@ -76,11 +88,14 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUser, friendships, onFri
         </div>
       </div>
 
+      {error && <div className="mt-2 text-sm text-red-400 bg-red-500/10 p-2 rounded-md">{error}</div>}
+
       {loading && <div className="text-center py-2 text-sm text-gray-400">Searching...</div>}
 
       <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
         {results.map(user => {
           const status = getFriendshipStatus(user.id);
+          const isSending = sendingRequestId === user.id;
           return (
             <div key={user.id} className="flex items-center justify-between bg-gray-700/50 p-2 rounded-md">
               <span className="font-semibold text-sm">{user.username}</span>
@@ -91,9 +106,15 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUser, friendships, onFri
               ) : (
                 <button 
                   onClick={() => handleSendRequest(user.id)}
-                  className="bg-red-600 hover:bg-red-700 p-1 rounded-full text-white"
+                  disabled={isSending}
+                  className="bg-red-600 hover:bg-red-700 p-1 rounded-full text-white w-6 h-6 flex items-center justify-center disabled:bg-gray-500 disabled:cursor-wait"
+                  aria-label={`Send friend request to ${user.username}`}
                 >
-                  <UserAddIcon className="w-4 h-4" />
+                  {isSending ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div>
+                  ) : (
+                      <UserAddIcon className="w-4 h-4" />
+                  )}
                 </button>
               )}
             </div>
