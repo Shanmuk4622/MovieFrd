@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,6 +28,7 @@ const Chat: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAnonymity, setModalAnonymity] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const fetchInitialData = useCallback(async () => {
     if (!user) return;
@@ -67,6 +69,11 @@ const Chat: React.FC = () => {
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
+  
+  const handleSelectConversation = (conversation: Conversation) => {
+    setActiveConversation(conversation);
+    setIsSidebarOpen(false); // Close sidebar on mobile after selection
+  }
 
   useEffect(() => {
     if (!activeConversation || !user) return;
@@ -140,19 +147,27 @@ const Chat: React.FC = () => {
 
   return (
     <>
-      <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+      <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden relative">
         <RoomSidebar 
             rooms={rooms} 
             friends={friends}
             activeConversation={activeConversation} 
-            setActiveConversation={setActiveConversation}
+            setActiveConversation={handleSelectConversation}
             onOpenCreateRoom={handleOpenCreateRoom}
             unreadCounts={unreadCounts}
+            isOpen={isSidebarOpen}
+            setIsOpen={setIsSidebarOpen}
         />
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col flex-1 min-w-0">
           {activeConversation ? (
             <>
-              <MessageArea user={user} messages={messages} conversation={activeConversation} isLoading={messagesLoading} />
+              <MessageArea 
+                user={user} 
+                messages={messages} 
+                conversation={activeConversation} 
+                isLoading={messagesLoading}
+                onToggleSidebar={() => setIsSidebarOpen(true)}
+              />
               <MessageInput onSendMessage={handleSendMessage} />
             </>
           ) : (

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ChatRoom, Profile } from '../types';
 import { Conversation } from './Chat';
@@ -10,9 +11,11 @@ interface RoomSidebarProps {
   setActiveConversation: (conversation: Conversation) => void;
   onOpenCreateRoom: (isAnonymous: boolean) => void;
   unreadCounts: Record<string, number>;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
 }
 
-const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConversation, setActiveConversation, onOpenCreateRoom, unreadCounts }) => {
+const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConversation, setActiveConversation, onOpenCreateRoom, unreadCounts, isOpen, setIsOpen }) => {
   const publicChannels = rooms.filter(r => !r.is_anonymous);
   const anonymousRooms = rooms.filter(r => r.is_anonymous);
 
@@ -59,43 +62,63 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
     );
   };
 
+  const SidebarContent = () => (
+     <>
+        <div>
+            <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2 px-2">Direct Messages</h3>
+            <div className="space-y-1">
+            {friends.map(friend => (
+                <FriendLink key={friend.id} friend={friend} />
+            ))}
+            </div>
+        </div>
+        <div>
+            <div className="flex items-center justify-between mb-2 px-2">
+                <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Public Channels</h3>
+                <button onClick={() => onOpenCreateRoom(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <PlusCircleIcon className="w-5 h-5" />
+                </button>
+            </div>
+            <div className="space-y-1">
+            {publicChannels.map(room => (
+                <RoomLink key={room.id} room={room} />
+            ))}
+            </div>
+        </div>
+        <div>
+            <div className="flex items-center justify-between mb-2 px-2">
+                <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Anonymous Rooms</h3>
+                <button onClick={() => onOpenCreateRoom(true)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <PlusCircleIcon className="w-5 h-5" />
+                </button>
+            </div>
+            <div className="space-y-1">
+            {anonymousRooms.map(room => (
+                <RoomLink key={room.id} room={room} />
+            ))}
+            </div>
+        </div>
+    </>
+  );
+
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700/50 p-4 flex flex-col space-y-6 overflow-y-auto">
-       <div>
-        <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2 px-2">Direct Messages</h3>
-        <div className="space-y-1">
-          {friends.map(friend => (
-            <FriendLink key={friend.id} friend={friend} />
-          ))}
+    <>
+        {/* Overlay for mobile */}
+        <div 
+            className={`fixed inset-0 bg-black/50 z-20 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            onClick={() => setIsOpen(false)}
+        ></div>
+
+        {/* Sidebar */}
+        <div className={`
+            ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
+            fixed lg:static top-0 left-0 h-full lg:h-auto z-30
+            w-64 flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700/50 p-4 flex flex-col space-y-6 overflow-y-auto 
+            transition-transform duration-300 ease-in-out
+        `}>
+           <SidebarContent />
         </div>
-      </div>
-      <div>
-        <div className="flex items-center justify-between mb-2 px-2">
-            <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Public Channels</h3>
-            <button onClick={() => onOpenCreateRoom(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                <PlusCircleIcon className="w-5 h-5" />
-            </button>
-        </div>
-        <div className="space-y-1">
-          {publicChannels.map(room => (
-            <RoomLink key={room.id} room={room} />
-          ))}
-        </div>
-      </div>
-      <div>
-        <div className="flex items-center justify-between mb-2 px-2">
-            <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Anonymous Rooms</h3>
-            <button onClick={() => onOpenCreateRoom(true)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                <PlusCircleIcon className="w-5 h-5" />
-            </button>
-        </div>
-        <div className="space-y-1">
-          {anonymousRooms.map(room => (
-            <RoomLink key={room.id} room={room} />
-          ))}
-        </div>
-      </div>
-    </div>
+    </>
   );
 };
 

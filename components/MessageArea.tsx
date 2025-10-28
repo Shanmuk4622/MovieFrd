@@ -1,14 +1,16 @@
+
 import React, { useEffect, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { ChatMessage, DirectMessage } from '../types';
 import { Conversation } from './Chat';
-import { UserIcon } from './icons';
+import { UserIcon, MenuIcon } from './icons';
 
 interface MessageAreaProps {
   user: User;
   messages: (ChatMessage | DirectMessage)[];
   conversation: Conversation;
   isLoading: boolean;
+  onToggleSidebar: () => void;
 }
 
 const adjectives = ["Clever", "Silent", "Brave", "Quick", "Wise", "Witty", "Curious", "Daring", "Gentle", "Keen"];
@@ -37,7 +39,7 @@ const formatTimestamp = (dateString: string) => {
 };
 
 
-const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading }) => {
+const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, onToggleSidebar }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
 
@@ -66,12 +68,17 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
-      <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700/50 sticky top-0 bg-gray-50 dark:bg-gray-900/50 backdrop-blur-sm z-10">
-        <h2 className="text-xl font-bold">
-            {conversation.type === 'room' ? '# ' : '@ '}
-            {conversationName}
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{conversationDescription || 'Welcome!'}</p>
+      <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700/50 sticky top-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 -mx-4 px-4 flex items-center space-x-2">
+        <button onClick={onToggleSidebar} className="lg:hidden text-gray-500 dark:text-gray-400 p-1 -ml-1">
+            <MenuIcon className="w-6 h-6"/>
+        </button>
+        <div>
+            <h2 className="text-xl font-bold">
+                {conversation.type === 'room' ? '# ' : '@ '}
+                {conversationName}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[calc(100vw-120px)]">{conversationDescription || 'Welcome!'}</p>
+        </div>
       </div>
        {isLoading ? (
         <div className="absolute inset-0 bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-center">
@@ -101,7 +108,7 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                             </span>
                         </div>
                         <div className={`mt-1 p-3 rounded-lg max-w-lg ${isCurrentUser ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>
-                            <p>{msg.content}</p>
+                            <p className="break-words">{msg.content}</p>
                         </div>
                     </div>
                 </div>
