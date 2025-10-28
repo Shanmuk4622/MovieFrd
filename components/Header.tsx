@@ -20,14 +20,14 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
   };
 
   return (
-    <header className="bg-gray-900 bg-opacity-80 backdrop-blur-md sticky top-0 z-50 p-4 shadow-lg shadow-black/20">
+    <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 p-4 shadow-lg shadow-gray-200/60 dark:shadow-black/20">
       <div className="container mx-auto flex items-center justify-between">
         <div 
             className="flex items-center space-x-2 cursor-pointer"
             onClick={() => setView('dashboard')}
         >
           <PlayIcon className="w-8 h-8 text-red-500" />
-          <span className="text-xl font-bold tracking-wider">MovieFrd</span>
+          <span className="text-xl font-bold tracking-wider text-gray-900 dark:text-white">MovieFrd</span>
         </div>
         
         <div className="flex-1 flex justify-center px-8">
@@ -38,10 +38,10 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              className="w-full bg-gray-800 text-white placeholder-gray-500 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
             />
             <div className="absolute left-3 top-1/2 -translate-y-1/2">
-              <SearchIcon className="w-5 h-5 text-gray-400" />
+              <SearchIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </div>
           </div>
         </div>
@@ -49,7 +49,7 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
         <div className="flex items-center space-x-4">
           <button
             onClick={() => setView('chat')}
-            className="hidden sm:block text-sm font-semibold hover:text-red-500 transition-colors"
+            className="hidden sm:block text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-red-500 transition-colors"
           >
             Chat
           </button>
@@ -62,9 +62,9 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
                 {profile?.avatar_url ? (
                     <img src={profile.avatar_url} alt="Profile" className="w-8 h-8 rounded-full object-cover"/>
                 ) : (
-                    <UserIcon className="w-8 h-8 text-gray-400 group-hover:text-red-500/80 transition-colors" />
+                    <UserIcon className="w-8 h-8 text-gray-500 dark:text-gray-400 group-hover:text-red-500/80 transition-colors" />
                 )}
-                <span className="hidden md:inline truncate max-w-[100px] text-white group-hover:text-red-500 transition-colors text-sm font-semibold">
+                <span className="hidden md:inline truncate max-w-[100px] text-gray-900 dark:text-white group-hover:text-red-500 transition-colors text-sm font-semibold">
                     {profile?.username || user.email}
                 </span>
               </button>
@@ -76,7 +76,7 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
               </button>
             </div>
           ) : (
-            <UserIcon className="w-8 h-8 text-gray-400" />
+            <UserIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" />
           )}
         </div>
       </div>

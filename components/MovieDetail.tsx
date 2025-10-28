@@ -47,21 +47,21 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, setView }) => {
 
     return (
         <div className="px-4 md:px-0 animate-fade-in">
-            <button onClick={() => setView('dashboard')} className="mb-6 bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+            <button onClick={() => setView('dashboard')} className="mb-6 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-bold py-2 px-4 rounded-md transition-colors">
                 &larr; Back to Dashboard
             </button>
 
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8">
                 {/* Left Column: Poster */}
                 <div className="md:col-span-1 lg:col-span-1">
-                    <img src={movie.posterUrl} alt={movie.title} className="w-full h-auto rounded-lg shadow-lg shadow-black/30" />
+                    <img src={movie.posterUrl} alt={movie.title} className="w-full h-auto rounded-lg shadow-lg shadow-gray-400/30 dark:shadow-black/30" />
                 </div>
 
                 {/* Right Column: Details */}
                 <div className="md:col-span-2 lg:col-span-3">
-                    <h1 className="text-4xl font-bold">{movie.title} <span className="text-3xl font-light text-gray-400">({releaseYear})</span></h1>
+                    <h1 className="text-4xl font-bold">{movie.title} <span className="text-3xl font-light text-gray-500 dark:text-gray-400">({releaseYear})</span></h1>
                     
-                    <div className="flex items-center flex-wrap space-x-4 my-3 text-gray-300">
+                    <div className="flex items-center flex-wrap space-x-4 my-3 text-gray-600 dark:text-gray-300">
                         <span>{movie.releaseDate}</span>
                         <span>&bull;</span>
                         <span className="max-w-xs truncate">{movie.genres.map(g => g.name).join(', ')}</span>
@@ -72,12 +72,12 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, setView }) => {
                     </div>
 
                     <h2 className="text-2xl font-semibold mt-8 mb-2 border-l-4 border-red-500 pl-3">Synopsis</h2>
-                    <p className="text-gray-300 leading-relaxed">{movie.overview}</p>
+                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{movie.overview}</p>
 
                     {movie.trailerUrl && (
                         <>
                             <h2 className="text-2xl font-semibold mt-8 mb-3 border-l-4 border-red-500 pl-3">Trailer</h2>
-                            <div className="relative pt-[56.25%] rounded-lg overflow-hidden shadow-lg shadow-black/30">
+                            <div className="relative pt-[56.25%] rounded-lg overflow-hidden shadow-lg shadow-gray-400/30 dark:shadow-black/30">
                                 <iframe 
                                     src={movie.trailerUrl}
                                     title={`${movie.title} Trailer`}
@@ -95,14 +95,14 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, setView }) => {
                         {movie.cast.map(member => (
                             <div key={member.id} className="text-center">
                                 {member.profileUrl && member.profileUrl.includes('placeholder') ? (
-                                    <div className="w-full aspect-[2/3] bg-gray-700 rounded-lg flex items-center justify-center mb-2">
-                                        <UserIcon className="w-10 h-10 text-gray-500"/>
+                                    <div className="w-full aspect-[2/3] bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-2">
+                                        <UserIcon className="w-10 h-10 text-gray-400 dark:text-gray-500"/>
                                     </div>
                                 ) : (
                                     <img src={member.profileUrl!} alt={member.name} className="w-full aspect-[2/3] object-cover rounded-lg mb-2 shadow-md"/>
                                 )}
                                 <p className="font-bold text-sm">{member.name}</p>
-                                <p className="text-xs text-gray-400">{member.character}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{member.character}</p>
                             </div>
                         ))}
                     </div>

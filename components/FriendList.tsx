@@ -59,7 +59,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
     <button
       onClick={() => setActiveTab(tab)}
       className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors relative ${
-        activeTab === tab ? 'bg-red-600 text-white' : 'hover:bg-gray-700 text-gray-300'
+        activeTab === tab ? 'bg-red-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
       }`}
     >
       {label}
@@ -73,7 +73,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
 
   return (
     <div>
-      <div className="flex items-center space-x-2 border-b border-gray-700 pb-2 mb-3">
+      <div className="flex items-center space-x-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
         <UserGroupIcon className="w-6 h-6" />
         <h3 className="text-lg font-bold">Friends</h3>
       </div>
@@ -87,14 +87,14 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
         {activeTab === 'friends' && friends.map(f => {
           const friend = f.requester_id === currentUser.id ? f.addressee : f.requester;
           return (
-            <div key={f.id} className="flex items-center justify-between bg-gray-700/50 p-2 rounded-md text-sm">
+            <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
               <span>{friend.username}</span>
-              <button onClick={() => handleRemoveFriend(f.id)} className="text-gray-400 hover:text-red-500"><XIcon className="w-4 h-4"/></button>
+              <button onClick={() => handleRemoveFriend(f.id)} className="text-gray-500 dark:text-gray-400 hover:text-red-500"><XIcon className="w-4 h-4"/></button>
             </div>
           )
         })}
         {activeTab === 'incoming' && incomingRequests.map(f => (
-          <div key={f.id} className="flex items-center justify-between bg-gray-700/50 p-2 rounded-md text-sm">
+          <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
             <span>{f.requester.username}</span>
             <div className="flex space-x-2">
                 <button onClick={() => handleRequestAction(f.id, true)} className="text-green-400 hover:text-green-300"><CheckIcon className="w-5 h-5"/></button>
@@ -103,7 +103,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
           </div>
         ))}
         {activeTab === 'pending' && pendingRequests.map(f => (
-           <div key={f.id} className="flex items-center justify-between bg-gray-700/50 p-2 rounded-md text-sm text-gray-400">
+           <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm text-gray-500 dark:text-gray-400">
             <span>{f.addressee.username}</span>
             <span>Pending...</span>
           </div>

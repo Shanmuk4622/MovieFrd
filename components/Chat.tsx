@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
@@ -143,7 +140,7 @@ const Chat: React.FC = () => {
 
   return (
     <>
-      <div className="flex h-[calc(100vh-120px)] bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+      <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
         <RoomSidebar 
             rooms={rooms} 
             friends={friends}
@@ -159,7 +156,7 @@ const Chat: React.FC = () => {
               <MessageInput onSendMessage={handleSendMessage} />
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400 p-4 text-center">
+            <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400 p-4 text-center">
               <p>Select a room or a friend to start chatting.</p>
             </div>
           )}

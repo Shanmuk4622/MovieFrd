@@ -50,18 +50,18 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-2">
                 <PlayIcon className="w-10 h-10 text-red-500" />
-                <h1 className="text-4xl font-bold tracking-wider text-white">MovieFrd</h1>
+                <h1 className="text-4xl font-bold tracking-wider text-gray-900 dark:text-white">MovieFrd</h1>
             </div>
-            <p className="text-gray-400 mt-2">Join the VITAP movie community.</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Join the VITAP movie community.</p>
         </div>
 
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl shadow-black/30">
-          <h2 className="text-2xl font-bold text-center text-white mb-6">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl shadow-gray-300 dark:shadow-black/30">
+          <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">
             {isSignUp ? 'Create Your Account' : 'Welcome Back'}
           </h2>
           
@@ -71,12 +71,12 @@ const Auth: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
               <div>
-                <label className="text-sm font-bold text-gray-400 block mb-2" htmlFor="username">
+                <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="username">
                   Username
                 </label>
                 <input
                   id="username"
-                  className="w-full p-3 bg-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -85,12 +85,12 @@ const Auth: React.FC = () => {
               </div>
             )}
             <div>
-              <label className="text-sm font-bold text-gray-400 block mb-2" htmlFor="email">
+              <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="email">
                 Email
               </label>
               <input
                 id="email"
-                className="w-full p-3 bg-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -98,12 +98,12 @@ const Auth: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-sm font-bold text-gray-400 block mb-2" htmlFor="password">
+              <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="password">
                 Password
               </label>
               <input
                 id="password"
-                className="w-full p-3 bg-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -121,7 +121,7 @@ const Auth: React.FC = () => {
             </div>
           </form>
 
-          <p className="text-center text-gray-400 text-sm mt-6">
+          <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-6">
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}
             <button
               onClick={() => {

@@ -85,7 +85,7 @@ const App: React.FC = () => {
   
   if (loading && !selectedMovieId) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
       </div>
     );
@@ -124,7 +124,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
       <Header setView={handleSetView} onSearch={handleSearch} />
       <main className="container mx-auto py-8">
         {renderContent()}

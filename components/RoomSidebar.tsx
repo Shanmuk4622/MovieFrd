@@ -1,7 +1,3 @@
-
-
-
-
 import React from 'react';
 import { ChatRoom, Profile } from '../types';
 import { Conversation } from './Chat';
@@ -27,8 +23,8 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
         onClick={() => setActiveConversation({ ...room, type: 'room' })}
         className={`w-full text-left px-4 py-2 rounded-md transition-colors text-sm flex items-center justify-between ${
           activeConversation?.type === 'room' && activeConversation.id === room.id
-            ? 'bg-red-500/20 text-white font-semibold'
-            : 'text-gray-300 hover:bg-gray-700'
+            ? 'bg-red-500/20 text-gray-900 dark:text-white font-semibold'
+            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
         }`}
       >
         <span className="truncate"># {room.name}</span>
@@ -48,8 +44,8 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
         onClick={() => setActiveConversation({ ...friend, type: 'dm' })}
         className={`w-full text-left px-4 py-2 rounded-md transition-colors text-sm flex items-center space-x-2 ${
           activeConversation?.type === 'dm' && activeConversation.id === friend.id
-            ? 'bg-red-500/20 text-white font-semibold'
-            : 'text-gray-300 hover:bg-gray-700'
+            ? 'bg-red-500/20 text-gray-900 dark:text-white font-semibold'
+            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
         }`}
       >
         <UserIcon className="w-4 h-4 flex-shrink-0" />
@@ -64,9 +60,9 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
   };
 
   return (
-    <div className="w-64 bg-gray-800 border-r border-gray-700/50 p-4 flex flex-col space-y-6 overflow-y-auto">
+    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700/50 p-4 flex flex-col space-y-6 overflow-y-auto">
        <div>
-        <h3 className="text-xs font-bold uppercase text-gray-400 mb-2 px-2">Direct Messages</h3>
+        <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2 px-2">Direct Messages</h3>
         <div className="space-y-1">
           {friends.map(friend => (
             <FriendLink key={friend.id} friend={friend} />
@@ -75,8 +71,8 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
       </div>
       <div>
         <div className="flex items-center justify-between mb-2 px-2">
-            <h3 className="text-xs font-bold uppercase text-gray-400">Public Channels</h3>
-            <button onClick={() => onOpenCreateRoom(false)} className="text-gray-400 hover:text-white">
+            <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Public Channels</h3>
+            <button onClick={() => onOpenCreateRoom(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                 <PlusCircleIcon className="w-5 h-5" />
             </button>
         </div>
@@ -88,8 +84,8 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
       </div>
       <div>
         <div className="flex items-center justify-between mb-2 px-2">
-            <h3 className="text-xs font-bold uppercase text-gray-400">Anonymous Rooms</h3>
-            <button onClick={() => onOpenCreateRoom(true)} className="text-gray-400 hover:text-white">
+            <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Anonymous Rooms</h3>
+            <button onClick={() => onOpenCreateRoom(true)} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
                 <PlusCircleIcon className="w-5 h-5" />
             </button>
         </div>

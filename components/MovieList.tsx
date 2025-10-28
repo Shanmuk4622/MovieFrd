@@ -16,7 +16,7 @@ const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, on
     return (
       <section className="mb-12">
         <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>
-        <div className="px-4 md:px-0 text-gray-400">
+        <div className="px-4 md:px-0 text-gray-500 dark:text-gray-400">
           This list is currently empty.
         </div>
       </section>

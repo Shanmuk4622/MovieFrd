@@ -81,23 +81,23 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUser, friendships, onFri
           placeholder="Search by username..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-gray-700 text-white placeholder-gray-400 rounded-md py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+          className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-md py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
         />
         <div className="absolute left-3 top-1/2 -translate-y-1/2">
-          <SearchIcon className="w-5 h-5 text-gray-400" />
+          <SearchIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
         </div>
       </div>
 
       {error && <div className="mt-2 text-sm text-red-400 bg-red-500/10 p-2 rounded-md">{error}</div>}
 
-      {loading && <div className="text-center py-2 text-sm text-gray-400">Searching...</div>}
+      {loading && <div className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">Searching...</div>}
 
       <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
         {results.map(user => {
           const status = getFriendshipStatus(user.id);
           const isSending = sendingRequestId === user.id;
           return (
-            <div key={user.id} className="flex items-center justify-between bg-gray-700/50 p-2 rounded-md">
+            <div key={user.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md">
               <span className="font-semibold text-sm">{user.username}</span>
               {status === 'accepted' ? (
                 <span className="text-xs font-bold text-green-400 flex items-center"><CheckIcon className="w-4 h-4 mr-1"/> Friends</span>
