@@ -1,6 +1,4 @@
-
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -12,11 +10,12 @@ import RoomSidebar from './RoomSidebar';
 import MessageArea from './MessageArea';
 import MessageInput from './MessageInput';
 import CreateRoomModal from './CreateRoomModal';
+import { supabase } from '../supabaseClient';
 
 export type Conversation = (ChatRoom & { type: 'room' }) | (Profile & { type: 'dm' });
 
 const Chat: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -29,6 +28,27 @@ const Chat: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAnonymity, setModalAnonymity] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // --- Real-time features state ---
+  const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const typingTimers = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    if (isSidebarOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSidebarOpen]);
 
   const fetchInitialData = useCallback(async () => {
     if (!user) return;
@@ -45,19 +65,6 @@ const Chat: React.FC = () => {
       .filter(f => f.status === 'accepted')
       .map(f => f.requester_id === user.id ? f.addressee : f.requester);
     setFriends(acceptedFriends);
-
-    // --- SIMULATE UNREAD MESSAGES ---
-    // This is for demonstration. A real implementation would track this dynamically.
-    const newUnreadCounts: Record<string, number> = {};
-    const publicRooms = chatRooms.filter(r => !r.is_anonymous);
-    if (publicRooms.length > 1) {
-      newUnreadCounts[`room-${publicRooms[1].id}`] = 3; // Mark second public room as unread
-    }
-    if (acceptedFriends.length > 0) {
-      newUnreadCounts[`dm-${acceptedFriends[0].id}`] = 1; // Mark first friend as unread
-    }
-    setUnreadCounts(newUnreadCounts);
-    // --- END SIMULATION ---
 
     if (chatRooms.length > 0 && !activeConversation) {
       setActiveConversation({ ...chatRooms[0], type: 'room' });
@@ -76,7 +83,11 @@ const Chat: React.FC = () => {
   }
 
   useEffect(() => {
-    if (!activeConversation || !user) return;
+    if (!activeConversation || !user || !profile) return;
+
+    setTypingUsers([]); // Clear on conversation change
+    typingTimers.current.forEach(timerId => clearTimeout(timerId));
+    typingTimers.current.clear();
 
     let subscription: RealtimeChannel;
 
@@ -92,6 +103,31 @@ const Chat: React.FC = () => {
         setMessages((prev) => [...prev, newMessage]);
     };
 
+    const handleTypingEvent = (payload: { userId: string, username: string }) => {
+        if (payload.userId !== user.id) {
+            if (typingTimers.current.has(payload.userId)) {
+                clearTimeout(typingTimers.current.get(payload.userId));
+            }
+            setTypingUsers(prev => {
+                if (prev.find(u => u.id === payload.userId)) return prev;
+                return [...prev, { id: payload.userId, username: payload.username, avatar_url: null }];
+            });
+            const timerId = window.setTimeout(() => {
+                setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+                typingTimers.current.delete(payload.userId);
+            }, 3000); // Remove after 3 seconds of inactivity
+            typingTimers.current.set(payload.userId, timerId);
+        }
+    };
+
+    const handleStopTypingEvent = (payload: { userId: string }) => {
+        if (typingTimers.current.has(payload.userId)) {
+            clearTimeout(typingTimers.current.get(payload.userId));
+            typingTimers.current.delete(payload.userId);
+        }
+        setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+    };
+
     const fetchMessagesAndSubscribe = async () => {
       setMessagesLoading(true);
       setMessages([]);
@@ -105,17 +141,26 @@ const Chat: React.FC = () => {
         setMessages(initialMessages);
         subscription = subscribeToDirectMessages(user.id, activeConversation.id, handleNewMessage);
       }
+
+      subscription
+        .on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload))
+        .on('broadcast', { event: 'stopped-typing' }, ({ payload }) => handleStopTypingEvent(payload));
+      
+      channelRef.current = subscription;
       setMessagesLoading(false);
     };
 
     fetchMessagesAndSubscribe();
     
     return () => {
-      if (subscription) {
-        subscription.unsubscribe();
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
+      typingTimers.current.forEach(timerId => clearTimeout(timerId));
+      typingTimers.current.clear();
     };
-  }, [activeConversation, user, profileCache]);
+  }, [activeConversation, user, profile, profileCache]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!user || !activeConversation || !content.trim()) return;
@@ -130,6 +175,16 @@ const Chat: React.FC = () => {
     }
   }, [user, activeConversation]);
 
+  const handleTyping = useCallback((isTyping: boolean) => {
+    if (!channelRef.current || !user || !profile) return;
+    channelRef.current.send({
+        type: 'broadcast',
+        event: isTyping ? 'typing' : 'stopped-typing',
+        payload: { userId: user.id, username: profile.username },
+    });
+  }, [user, profile]);
+
+
   const handleOpenCreateRoom = (isAnonymous: boolean) => {
     setModalAnonymity(isAnonymous);
     setIsModalOpen(true);
@@ -141,13 +196,9 @@ const Chat: React.FC = () => {
     setActiveConversation({ ...newRoom, type: 'room' });
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-[calc(100vh-200px)]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div></div>;
-  }
-
   return (
     <>
-      <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden relative">
+      <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden relative">
         <RoomSidebar 
             rooms={rooms} 
             friends={friends}
@@ -157,18 +208,21 @@ const Chat: React.FC = () => {
             unreadCounts={unreadCounts}
             isOpen={isSidebarOpen}
             setIsOpen={setIsSidebarOpen}
+            isLoading={loading}
         />
         <div className="flex flex-col flex-1 min-w-0">
-          {activeConversation ? (
+          {activeConversation || loading ? (
             <>
               <MessageArea 
-                user={user} 
+                user={user!} 
                 messages={messages} 
                 conversation={activeConversation} 
-                isLoading={messagesLoading}
+                isLoading={messagesLoading || !activeConversation}
+                isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={() => setIsSidebarOpen(true)}
+                typingUsers={typingUsers}
               />
-              <MessageInput onSendMessage={handleSendMessage} />
+              <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400 p-4 text-center">

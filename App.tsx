@@ -123,10 +123,14 @@ const App: React.FC = () => {
     }
   }
 
+  const mainContainerClasses = view === 'chat' 
+    ? 'flex-grow container mx-auto w-full' 
+    : 'container mx-auto py-4 sm:py-8';
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
       <Header setView={handleSetView} onSearch={handleSearch} />
-      <main className="container mx-auto py-8">
+      <main className={mainContainerClasses}>
         {renderContent()}
       </main>
     </div>

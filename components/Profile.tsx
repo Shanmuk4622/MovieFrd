@@ -113,7 +113,7 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
             <div className="p-4 bg-white dark:bg-gray-800/50 rounded-lg mb-8 shadow-sm">
               <form onSubmit={handleAvatarUpload}>
                   <label htmlFor="avatar-upload" className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Update Profile Picture</label>
-                  <div className="flex items-center space-x-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                       <input
                           type="file"
                           id="avatar-upload"

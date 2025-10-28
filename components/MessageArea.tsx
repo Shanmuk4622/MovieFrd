@@ -1,16 +1,17 @@
-
 import React, { useEffect, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
-import { ChatMessage, DirectMessage } from '../types';
+import { ChatMessage, DirectMessage, Profile } from '../types';
 import { Conversation } from './Chat';
 import { UserIcon, MenuIcon } from './icons';
 
 interface MessageAreaProps {
   user: User;
   messages: (ChatMessage | DirectMessage)[];
-  conversation: Conversation;
+  conversation: Conversation | null;
   isLoading: boolean;
+  isSidebarOpen: boolean;
   onToggleSidebar: () => void;
+  typingUsers: Profile[];
 }
 
 const adjectives = ["Clever", "Silent", "Brave", "Quick", "Wise", "Witty", "Curious", "Daring", "Gentle", "Keen"];
@@ -38,13 +39,37 @@ const formatTimestamp = (dateString: string) => {
     return date.toLocaleDateString();
 };
 
+const TypingIndicator: React.FC<{ users: Profile[] }> = ({ users }) => {
+    if (users.length === 0) return null;
+    
+    let text = '';
+    if (users.length === 1) {
+        text = `${users[0].username} is typing`;
+    } else if (users.length === 2) {
+        text = `${users[0].username} and ${users[1].username} are typing`;
+    } else {
+        text = `Several people are typing`;
+    }
 
-const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, onToggleSidebar }) => {
+    return (
+        <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600 dark:text-gray-300 italic">{text}</span>
+            <div className="flex space-x-1">
+                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-pulse [animation-delay:-0.3s]"></span>
+                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-pulse [animation-delay:-0.15s]"></span>
+                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-pulse"></span>
+            </div>
+        </div>
+    );
+};
+
+
+const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
 
   const getDisplayName = (message: ChatMessage | DirectMessage) => {
-    if (conversation.type === 'room' && conversation.is_anonymous) {
+    if (conversation && conversation.type === 'room' && conversation.is_anonymous) {
       if (!aliasMap.current.has(message.sender_id)) {
         aliasMap.current.set(message.sender_id, generateAlias(message.sender_id));
       }
@@ -55,36 +80,42 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
 
   useEffect(() => {
     aliasMap.current.clear();
-  }, [conversation.id, conversation.type]);
+  }, [conversation]);
 
   useEffect(() => {
     if (!isLoading) {
         endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, typingUsers]);
   
-  const conversationName = conversation.type === 'room' ? conversation.name : conversation.username;
-  const conversationDescription = conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`;
+  const conversationName = conversation ? (conversation.type === 'room' ? conversation.name : conversation.username) : 'Loading...';
+  const conversationDescription = conversation ? (conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`) : 'Please wait';
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
       <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700/50 sticky top-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 -mx-4 px-4 flex items-center space-x-2">
-        <button onClick={onToggleSidebar} className="lg:hidden text-gray-500 dark:text-gray-400 p-1 -ml-1">
+        <button 
+            onClick={onToggleSidebar} 
+            className="lg:hidden text-gray-500 dark:text-gray-400 p-1 -ml-1"
+            aria-controls="chat-sidebar"
+            aria-expanded={isSidebarOpen}
+            aria-label="Open conversation list"
+        >
             <MenuIcon className="w-6 h-6"/>
         </button>
         <div>
             <h2 className="text-xl font-bold">
-                {conversation.type === 'room' ? '# ' : '@ '}
+                {conversation && (conversation.type === 'room' ? '# ' : '@ ')}
                 {conversationName}
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[calc(100vw-120px)]">{conversationDescription || 'Welcome!'}</p>
         </div>
       </div>
        {isLoading ? (
-        <div className="absolute inset-0 bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-center z-20">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div>
         </div>
-      ) : messages.length === 0 ? (
+      ) : messages.length === 0 && typingUsers.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-gray-500 dark:text-gray-400">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white">No messages yet</h3>
@@ -92,21 +123,36 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
             </div>
         </div>
       ) : (
-      <div className="space-y-4 flex-1">
-        {messages.map((msg) => {
+      <div className="space-y-0 flex-1">
+        {messages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === user.id;
+            const prevMessage = index > 0 ? messages[index - 1] : null;
+
+            const showHeader = !prevMessage ||
+                               prevMessage.sender_id !== msg.sender_id ||
+                               (new Date(msg.created_at).getTime() - new Date(prevMessage.created_at).getTime()) > 5 * 60 * 1000;
+
             return (
-                <div key={msg.id} className={`flex items-start gap-3 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
-                    <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex-shrink-0 flex items-center justify-center">
-                       <UserIcon className="w-6 h-6 text-gray-400 dark:text-gray-400"/>
+                <div key={msg.id} className={`flex items-start gap-3 ${isCurrentUser ? 'flex-row-reverse' : ''} ${showHeader ? 'mt-4' : 'mt-1'}`}>
+                    {/* Avatar Column */}
+                    <div className="w-10 h-10 flex-shrink-0">
+                        {showHeader && (
+                            <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                               <UserIcon className="w-6 h-6 text-gray-400 dark:text-gray-400"/>
+                            </div>
+                        )}
                     </div>
-                    <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'}`}>
-                        <div className={`flex items-baseline gap-2 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
-                            <span className={`font-bold ${isCurrentUser ? 'text-gray-900 dark:text-white' : 'text-red-400'}`}>{getDisplayName(msg)}</span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
-                                {formatTimestamp(msg.created_at)}
-                            </span>
-                        </div>
+
+                    {/* Message Content Column */}
+                    <div className={`flex flex-col w-full ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+                        {showHeader && (
+                            <div className={`flex items-baseline gap-2 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
+                                <span className={`font-bold ${isCurrentUser ? 'text-gray-900 dark:text-white' : 'text-red-400'}`}>{getDisplayName(msg)}</span>
+                                <span className="text-xs text-gray-400 dark:text-gray-500">
+                                    {formatTimestamp(msg.created_at)}
+                                </span>
+                            </div>
+                        )}
                         <div className={`mt-1 p-3 rounded-lg max-w-lg ${isCurrentUser ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>
                             <p className="break-words">{msg.content}</p>
                         </div>
@@ -114,6 +160,14 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                 </div>
             )
         })}
+        {typingUsers.length > 0 && (
+            <div className="flex items-start gap-3 mt-1 animate-fade-in">
+                <div className="w-10 h-10 flex-shrink-0"></div>
+                <div className="flex flex-col items-start pt-2">
+                     <TypingIndicator users={typingUsers} />
+                </div>
+            </div>
+        )}
         <div ref={endOfMessagesRef} />
       </div>
       )}

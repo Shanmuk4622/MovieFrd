@@ -56,7 +56,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
   }, []);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 md:px-0">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 lg:px-0">
       <div className="lg:col-span-2">
         <MovieList 
           title="Popular on TMDB" 

@@ -30,7 +30,7 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
           <span className="text-xl font-bold tracking-wider text-gray-900 dark:text-white">MovieFrd</span>
         </div>
         
-        <div className="flex-1 flex justify-center px-8">
+        <div className="flex-1 flex justify-center px-4 lg:px-8">
           <div className="relative w-full max-w-lg">
             <input
               type="text"

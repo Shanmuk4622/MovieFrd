@@ -59,7 +59,7 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, setView }) => {
 
                 {/* Right Column: Details */}
                 <div className="md:col-span-2 lg:col-span-3">
-                    <h1 className="text-4xl font-bold">{movie.title} <span className="text-3xl font-light text-gray-500 dark:text-gray-400">({releaseYear})</span></h1>
+                    <h1 className="text-3xl md:text-4xl font-bold">{movie.title} <span className="text-2xl md:text-3xl font-light text-gray-500 dark:text-gray-400">({releaseYear})</span></h1>
                     
                     <div className="flex items-center flex-wrap space-x-4 my-3 text-gray-600 dark:text-gray-300">
                         <span>{movie.releaseDate}</span>
