@@ -54,18 +54,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchUserDependentData = useCallback(async (user: User) => {
-    try {
-      const [profileData, movieListsData] = await Promise.all([
-        getProfile(user.id),
-        getUserMovieLists(user.id)
-      ]);
-      setProfile(profileData);
-      setUserMovieLists(movieListsData || []);
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-      setProfile(null);
-      setUserMovieLists([]);
-    }
+    // This function remains the same, fetching profile and lists.
+    const [profileData, movieListsData] = await Promise.all([
+      getProfile(user.id),
+      getUserMovieLists(user.id)
+    ]);
+    setProfile(profileData);
+    setUserMovieLists(movieListsData || []);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -83,43 +78,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user]);
 
   useEffect(() => {
-    // Set loading to true on initial mount to show the splash screen.
     setLoading(true);
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    // This listener handles all auth events: INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED.
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       try {
-        // This callback handles all auth events: INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED.
-        setSession(newSession);
-        const currentUser = newSession?.user ?? null;
-        setUser(currentUser);
+        if (newSession) {
+          // FIX: Explicitly set the session in the client. This is the core of the fix,
+          // ensuring the client's in-memory state is always synchronized with storage,
+          // which is crucial after a token refresh.
+          await supabase.auth.setSession(newSession);
 
-        if (currentUser) {
-          // If we have a user, fetch their associated profile and movie list data.
+          setSession(newSession);
+          const currentUser = newSession.user;
+          setUser(currentUser);
+          // Fetch dependent data only after we have a confirmed user.
           await fetchUserDependentData(currentUser);
         } else {
-          // If no user is signed in, clear all user-specific data.
+          // If no session is found, clear all user-specific data.
+          setSession(null);
+          setUser(null);
           setProfile(null);
           setUserMovieLists([]);
         }
       } catch (error) {
-        // If any error occurs (e.g., network issue, stale session), log it and clear the user state.
-        console.error("A critical error occurred during authentication state change:", error);
+        // FIX: If any error occurs (e.g., fetching profile fails or token is corrupted),
+        // log it and force a sign-out to clear the invalid state, preventing the app from getting stuck.
+        console.error("Error handling auth state change. Signing out to clear corrupted state.", error);
+        await supabase.auth.signOut();
         setSession(null);
         setUser(null);
         setProfile(null);
         setUserMovieLists([]);
       } finally {
-        // CRITICAL: This `finally` block GUARANTEES that the loading screen is removed,
-        // even if an error occurs. This prevents the app from getting stuck.
+        // FIX: This `finally` block GUARANTEES that the loading screen is removed,
+        // even if an error occurs during the process.
         setLoading(false);
       }
     });
 
     return () => {
-      // Clean up the listener when the component unmounts to prevent memory leaks.
+      // Clean up the listener when the component unmounts.
       authListener?.subscription.unsubscribe();
     };
   }, [fetchUserDependentData]);
+
 
   const value = {
     session,
@@ -135,6 +138,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     toggleTheme,
   };
   
+  // Display loading screen until the initial session check is complete.
   if (loading) {
       return (
           <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center">
