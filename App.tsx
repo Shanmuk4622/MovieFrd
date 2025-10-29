@@ -131,6 +131,7 @@ const App: React.FC = () => {
             currentUserMovieLists={userMovieLists}
             onListUpdate={handleListUpdate}
             onSelectMovie={handleSelectMovie}
+            onSelectProfile={handleSelectProfile}
         />
       )}
       {notification && (

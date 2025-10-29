@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Friendship } from '../types';
@@ -100,7 +101,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
                     <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
                       <button 
                         onClick={() => onSelectProfile(friend.id)} 
-                        className="font-semibold hover:underline truncate"
+                        className="font-semibold hover:underline truncate text-left"
                       >
                         {friend.username}
                       </button>

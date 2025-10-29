@@ -12,9 +12,10 @@ interface UserProfileModalProps {
   currentUserMovieLists: UserMovieList[];
   onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
+  onSelectProfile: (userId: string) => void;
 }
 
-const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, currentUserMovieLists, onListUpdate, onSelectMovie }) => {
+const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, currentUserMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [watched, setWatched] = useState<Movie[]>([]);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
@@ -135,16 +136,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
             {friends.length > 0 ? (
                 <div className="px-4 md:px-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {friends.map(friend => (
-                        <div key={friend.id} className="flex items-center space-x-3 bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
+                        <button 
+                          key={friend.id} 
+                          onClick={() => onSelectProfile(friend.id)}
+                          className="flex items-center space-x-3 bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg text-left w-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
                             {friend.avatar_url ? (
                                 <img src={friend.avatar_url} alt={friend.username} className="w-10 h-10 rounded-full object-cover"/>
                             ) : (
-                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
                                     <UserIcon className="w-6 h-6 text-gray-500 dark:text-gray-400"/>
                                 </div>
                             )}
                             <span className="font-semibold truncate">{friend.username}</span>
-                        </div>
+                        </button>
                     ))}
                 </div>
             ) : (
