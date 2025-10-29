@@ -19,6 +19,7 @@ interface TmdbMovie {
   poster_path: string;
   vote_average: number;
   release_date: string;
+  popularity: number;
 }
 
 interface TmdbMovieDetail extends TmdbMovie {
@@ -52,6 +53,7 @@ const mapTmdbMovieToMovie = (tmdbMovie: TmdbMovie): Movie => ({
   posterUrl: tmdbMovie.poster_path ? `${IMAGE_BASE_URL}${tmdbMovie.poster_path}`: 'https://via.placeholder.com/500x750.png?text=No+Image',
   rating: tmdbMovie.vote_average,
   releaseDate: tmdbMovie.release_date,
+  popularity: tmdbMovie.popularity,
 });
 
 const checkApiKey = () => {
@@ -115,7 +117,21 @@ export const searchMovies = async (query: string): Promise<Movie[]> => {
     }
     const data = await response.json();
     const movies: TmdbMovie[] = data.results;
-    return movies.map(mapTmdbMovieToMovie);
+    const mappedMovies = movies.map(mapTmdbMovieToMovie);
+
+    // Sort results: newer movies first, then by popularity.
+    mappedMovies.sort((a, b) => {
+        const dateA = a.releaseDate ? new Date(a.releaseDate) : new Date(0);
+        const dateB = b.releaseDate ? new Date(b.releaseDate) : new Date(0);
+
+        if (dateA.getTime() !== dateB.getTime()) {
+            return dateB.getTime() - dateA.getTime(); // Descending for date
+        }
+
+        return b.popularity - a.popularity; // Descending for popularity
+    });
+    
+    return mappedMovies;
   } catch (error) {
     console.error(error);
     return [];
@@ -159,6 +175,7 @@ export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieD
             title: details.title,
             posterUrl: details.poster_path ? `${IMAGE_BASE_URL}${details.poster_path}` : 'https://via.placeholder.com/500x750.png?text=No+Image',
             rating: details.vote_average,
+            popularity: details.popularity,
             overview: details.overview,
             releaseDate: details.release_date,
             genres: details.genres,
