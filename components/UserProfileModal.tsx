@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Profile, Movie, UserMovieList } from '../types';
-import { getProfile, getUserMovieLists } from '../supabaseApi';
+import { Profile, Movie, UserMovieList, Friendship } from '../types';
+import { getProfile, getUserMovieLists, getFriendships } from '../supabaseApi';
 import { fetchMovieDetails } from '../api';
 import MovieList from './MovieList';
 import { UserIcon, XIcon } from './icons';
@@ -18,6 +18,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
   const [profile, setProfile] = useState<Profile | null>(null);
   const [watched, setWatched] = useState<Movie[]>([]);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
+  const [friends, setFriends] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,13 +39,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
       setLoading(true);
       setError(null);
       try {
-        const userProfile = await getProfile(userId);
+        const [userProfile, movieLists, friendshipsData] = await Promise.all([
+            getProfile(userId),
+            getUserMovieLists(userId),
+            getFriendships(userId)
+        ]);
+
         if (!userProfile) {
           throw new Error("User profile not found.");
         }
         setProfile(userProfile);
 
-        const movieLists = await getUserMovieLists(userId);
         const watchedIds = movieLists.filter(item => item.list_type === 'watched').map(item => item.tmdb_movie_id);
         const watchlistIds = movieLists.filter(item => item.list_type === 'watchlist').map(item => item.tmdb_movie_id);
 
@@ -52,7 +57,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
           fetchMoviesInChunks(watchedIds),
           fetchMoviesInChunks(watchlistIds)
         ]);
-
+        
+        const userFriends = friendshipsData
+            .filter(f => f.status === 'accepted')
+            .map(f => f.requester_id === userId ? f.addressee : f.requester);
+        
+        setFriends(userFriends);
         setWatched(watchedMovies);
         setWatchlist(watchlistMovies);
 
@@ -120,6 +130,29 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
             onListUpdate={onListUpdate}
             onSelectMovie={onSelectMovie}
         />
+        <div className="mt-8">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{`${profile.username}'s Friends`}</h2>
+            {friends.length > 0 ? (
+                <div className="px-4 md:px-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {friends.map(friend => (
+                        <div key={friend.id} className="flex items-center space-x-3 bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
+                            {friend.avatar_url ? (
+                                <img src={friend.avatar_url} alt={friend.username} className="w-10 h-10 rounded-full object-cover"/>
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                                    <UserIcon className="w-6 h-6 text-gray-500 dark:text-gray-400"/>
+                                </div>
+                            )}
+                            <span className="font-semibold truncate">{friend.username}</span>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="px-4 md:px-0 text-gray-500 dark:text-gray-400">
+                    This user has no friends yet.
+                </div>
+            )}
+        </div>
       </div>
     );
   };

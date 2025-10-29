@@ -3,7 +3,8 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import { 
     getChatRooms, createChatRoom, getRoomMessages, sendMessage, subscribeToRoomMessages,
-    getFriendships, getDirectMessages, sendDirectMessage, subscribeToDirectMessages, getProfile
+    getFriendships, getDirectMessages, sendDirectMessage, subscribeToDirectMessages, getProfile,
+    markDirectMessagesAsSeen
 } from '../supabaseApi';
 import { ChatRoom, ChatMessage, Friendship, Profile, DirectMessage } from '../types';
 import RoomSidebar from './RoomSidebar';
@@ -115,13 +116,13 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
         const { eventType, new: newMessage } = payload;
         
         // Ensure profile is cached for sender
-        if (!profileCache.has(newMessage.sender_id)) {
+        if (newMessage.sender_id && !profileCache.has(newMessage.sender_id)) {
             const senderProfile = await getProfile(newMessage.sender_id);
             if (senderProfile) {
                 setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
                 newMessage.profiles = senderProfile;
             }
-        } else {
+        } else if (newMessage.sender_id) {
             newMessage.profiles = profileCache.get(newMessage.sender_id) || null;
         }
 
@@ -133,6 +134,10 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
                 }
                 return [...prev, newMessage];
             });
+            // If the incoming message is a DM not sent by us, mark it as seen
+            if (activeConversation.type === 'dm' && newMessage.sender_id === activeConversation.id) {
+                await markDirectMessagesAsSeen(activeConversation.id, user.id);
+            }
         }
         if (eventType === 'UPDATE') {
             setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
@@ -176,6 +181,8 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
           } else { // DM
             const initialMessages = await getDirectMessages(user.id, activeConversation.id);
             setMessages(initialMessages);
+            // Mark messages from the other user as seen by me.
+            await markDirectMessagesAsSeen(activeConversation.id, user.id);
             subscription = subscribeToDirectMessages(user.id, activeConversation.id, handleMessageEvent);
           }
 

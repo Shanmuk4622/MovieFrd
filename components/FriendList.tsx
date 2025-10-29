@@ -94,24 +94,28 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
                   const friend = f.requester_id === currentUser.id ? f.addressee : f.requester;
                   return (
                     <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
-                      <span>{friend.username}</span>
-                      <button onClick={() => handleRemoveFriend(f.id)} className="text-gray-500 dark:text-gray-400 hover:text-red-500"><XIcon className="w-4 h-4"/></button>
+                      <span className="font-semibold">{friend.username}</span>
+                      <button onClick={() => handleRemoveFriend(f.id)} className="text-gray-500 dark:text-gray-400 hover:text-red-500 p-1"><XIcon className="w-4 h-4"/></button>
                     </div>
                   )
                 })}
                 {activeTab === 'incoming' && incomingRequests.map(f => (
                   <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
-                    <span>{f.requester.username}</span>
+                    <span className="truncate font-semibold">
+                      <span className="text-gray-500 dark:text-gray-400 font-normal mr-1">From:</span>{f.requester.username}
+                    </span>
                     <div className="flex space-x-2">
-                        <button onClick={() => handleRequestAction(f.id, true)} className="text-green-400 hover:text-green-300"><CheckIcon className="w-5 h-5"/></button>
+                        <button onClick={() => handleRequestAction(f.id, true)} className="text-green-500 hover:text-green-400"><CheckIcon className="w-5 h-5"/></button>
                         <button onClick={() => handleRequestAction(f.id, false)} className="text-red-500 hover:text-red-400"><XIcon className="w-5 h-5"/></button>
                     </div>
                   </div>
                 ))}
                 {activeTab === 'pending' && pendingRequests.map(f => (
-                   <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm text-gray-500 dark:text-gray-400">
-                    <span>{f.addressee.username}</span>
-                    <span>Pending...</span>
+                   <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
+                    <span className="truncate font-semibold">
+                      <span className="text-gray-500 dark:text-gray-400 font-normal mr-1">To:</span>{f.addressee.username}
+                    </span>
+                    <span className="text-xs font-semibold text-yellow-500 dark:text-yellow-400">Pending</span>
                   </div>
                 ))}
             </>

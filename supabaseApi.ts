@@ -287,6 +287,17 @@ export const sendDirectMessage = async (senderId: string, receiverId: string, co
     return data as DirectMessage;
 };
 
+export const markDirectMessagesAsSeen = async (senderId: string, receiverId: string) => {
+    const { error } = await supabase.rpc('mark_dms_as_seen', {
+        p_sender_id: senderId,
+        p_receiver_id: receiverId,
+    });
+    if (error) {
+        console.error("Error marking DMs as seen. Did you add the `mark_dms_as_seen` function to your Supabase project?", error);
+        // Don't throw, as this is a non-critical background task.
+    }
+};
+
 export const subscribeToDirectMessages = (
   userId1: string,
   userId2: string,

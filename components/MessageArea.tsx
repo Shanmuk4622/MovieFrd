@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { ChatMessage, DirectMessage, Profile } from '../types';
 import { Conversation } from './Chat';
@@ -100,6 +100,28 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
         endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading, typingUsers]);
+
+  const otherUserId = useMemo(() => {
+    if (conversation?.type === 'dm' && user) {
+        return conversation.id;
+    }
+    return null;
+  }, [conversation, user]);
+
+  const lastSeenByThemMessageId = useMemo(() => {
+      if (!otherUserId || messages.length === 0) return null;
+      
+      let lastId: number | null = null;
+      for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = messages[i];
+          // Check if it's a DM and meets the criteria
+          if ('receiver_id' in msg && msg.sender_id === user.id && msg.seen_by?.includes(otherUserId)) {
+              lastId = msg.id;
+              break;
+          }
+      }
+      return lastId;
+  }, [messages, user, otherUserId]);
   
   const conversationName = conversation ? (conversation.type === 'room' ? conversation.name : conversation.username) : 'Loading...';
   const conversationDescription = conversation ? (conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`) : 'Please wait';
@@ -196,6 +218,12 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                         <div className={`mt-1 p-3 rounded-lg max-w-lg ${isCurrentUser ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>
                             <p className="break-words">{msg.content}</p>
                         </div>
+                        {isCurrentUser && lastSeenByThemMessageId === msg.id && (
+                            <div className="flex justify-end items-center gap-1 mt-1 pr-1">
+                                <CheckDoubleIcon className="w-4 h-4 text-blue-400" />
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Seen</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             )
