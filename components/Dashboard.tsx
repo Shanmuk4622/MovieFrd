@@ -14,9 +14,10 @@ interface DashboardProps {
   userMovieLists: UserMovieList[];
   onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
+  onSelectProfile: (userId: string) => void;
 }
 
-const GeminiRecommender: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
+const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onListUpdate' | 'onSelectMovie'>> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,7 +169,7 @@ const GeminiRecommender: React.FC<DashboardProps> = ({ userMovieLists, onListUpd
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
   const { user } = useAuth();
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
@@ -212,8 +213,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
           return;
         }
 
-        // FIX: Argument of type 'unknown' is not assignable to parameter of type 'number'.
-        // By strongly typing the return value of getFriendActivity in supabaseApi.ts, `tmdb_movie_id` is now correctly inferred as a number.
         const movieIds = [...new Set(activitiesFromDb.map(a => a.tmdb_movie_id))];
         
         const movieDetailsPromises = movieIds.map(id => fetchMovieDetails(id));
@@ -235,6 +234,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
 
             return {
               id: activity.id,
+              userId: activity.profiles.id,
               userName: activity.profiles.username,
               userAvatarUrl: activity.profiles.avatar_url || `https://i.pravatar.cc/100?u=${activity.profiles.id}`,
               action: activity.list_type === 'watched' ? 'watched' : 'added to watchlist',
@@ -304,7 +304,12 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
         ) : friendActivity.length > 0 ? (
             <div className="space-y-4">
               {friendActivity.map(activity => (
-                <ActivityCard key={activity.id} activity={activity} />
+                <ActivityCard 
+                    key={activity.id} 
+                    activity={activity} 
+                    onSelectMovie={onSelectMovie}
+                    onSelectProfile={onSelectProfile}
+                />
               ))}
             </div>
         ) : (

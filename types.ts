@@ -19,6 +19,7 @@ export interface UserMovieList {
 
 export interface UserActivity {
   id: number;
+  userId: string;
   userName: string;
   userAvatarUrl: string;
   action: 'watched' | 'added to watchlist';

@@ -80,9 +80,11 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  const isAnonymousChat = conversation?.type === 'room' && conversation.is_anonymous;
 
   const getDisplayName = (message: ChatMessage | DirectMessage) => {
-    if (conversation && conversation.type === 'room' && conversation.is_anonymous) {
+    if (isAnonymousChat) {
       if (!aliasMap.current.has(message.sender_id)) {
         aliasMap.current.set(message.sender_id, generateAlias(message.sender_id));
       }
@@ -168,6 +170,7 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
       <div className="space-y-0 flex-1" ref={messagesContainerRef}>
         {messages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === user.id;
+            const isClickable = !isCurrentUser && !isAnonymousChat;
             const prevMessage = index > 0 ? messages[index - 1] : null;
 
             const showHeader = !prevMessage ||
@@ -183,13 +186,13 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                     <div className="w-10 h-10 flex-shrink-0">
                         {showHeader ? (
                             <button
-                                className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center disabled:cursor-default"
-                                onClick={() => !isCurrentUser && onSelectProfile(msg.sender_id)}
-                                disabled={isCurrentUser}
+                                className={`w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center disabled:cursor-default`}
+                                onClick={() => isClickable && onSelectProfile(msg.sender_id)}
+                                disabled={!isClickable}
                                 aria-label={`View profile of ${getDisplayName(msg)}`}
                             >
-                                {msg.profiles?.avatar_url ? (
-                                    <img src={msg.profiles.avatar_url} alt={getDisplayName(msg)} className={`w-full h-full rounded-full object-cover ${!isCurrentUser && 'hover:ring-2 hover:ring-red-500 transition-all'}`}/>
+                                {msg.profiles?.avatar_url && !isAnonymousChat ? (
+                                    <img src={msg.profiles.avatar_url} alt={getDisplayName(msg)} className={`w-full h-full rounded-full object-cover ${isClickable && 'hover:ring-2 hover:ring-red-500 transition-all'}`}/>
                                 ) : (
                                     <UserIcon className="w-6 h-6 text-gray-400 dark:text-gray-400"/>
                                 )}
@@ -202,9 +205,9 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                         {showHeader && (
                             <div className={`flex items-baseline gap-2 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
                                 <button 
-                                    className={`font-bold disabled:cursor-default ${isCurrentUser ? 'text-gray-900 dark:text-white' : 'text-red-400 hover:underline'}`}
-                                    onClick={() => !isCurrentUser && onSelectProfile(msg.sender_id)}
-                                    disabled={isCurrentUser}
+                                    className={`font-bold disabled:cursor-default ${isCurrentUser ? 'text-gray-900 dark:text-white' : (isClickable ? 'text-red-400 hover:underline' : 'text-red-400')}`}
+                                    onClick={() => isClickable && onSelectProfile(msg.sender_id)}
+                                    disabled={!isClickable}
                                 >
                                     {getDisplayName(msg)}
                                 </button>
