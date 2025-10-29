@@ -43,9 +43,10 @@ const SearchInput: React.FC<SearchInputProps> = ({ query, setQuery, onSubmit }) 
 interface HeaderProps {
     setView: (view: View) => void;
     onSearch: (query: string) => void;
+    view: View;
 }
 
-const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
+const Header: React.FC<HeaderProps> = ({ setView, onSearch, view }) => {
   const { user, profile, hasUnreadDms } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -73,13 +74,15 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
           
           {/* Desktop Search */}
           <div className="hidden md:flex flex-1 justify-center px-4 lg:px-8">
-            <div className="w-full max-w-lg">
-              <SearchInput 
-                query={searchQuery}
-                setQuery={setSearchQuery}
-                onSubmit={handleSearchSubmit}
-              />
-            </div>
+            {view !== 'chat' && (
+              <div className="w-full max-w-lg">
+                <SearchInput 
+                  query={searchQuery}
+                  setQuery={setSearchQuery}
+                  onSubmit={handleSearchSubmit}
+                />
+              </div>
+            )}
           </div>
 
           {/* Right-side navigation */}
@@ -115,13 +118,15 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
         </div>
         
         {/* Mobile Search */}
-        <div className="md:hidden mt-4">
-          <SearchInput 
-            query={searchQuery}
-            setQuery={setSearchQuery}
-            onSubmit={handleSearchSubmit}
-          />
-        </div>
+        {view !== 'chat' && (
+          <div className="md:hidden mt-4">
+            <SearchInput 
+              query={searchQuery}
+              setQuery={setSearchQuery}
+              onSubmit={handleSearchSubmit}
+            />
+          </div>
+        )}
       </div>
     </header>
   );

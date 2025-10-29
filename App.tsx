@@ -110,7 +110,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
-      <Header setView={handleSetView} onSearch={handleSearch} />
+      <Header setView={handleSetView} onSearch={handleSearch} view={view} />
       <main className={mainContainerClasses}>
         {renderContent()}
       </main>
