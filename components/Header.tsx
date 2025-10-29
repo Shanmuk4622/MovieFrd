@@ -1,7 +1,8 @@
 
 
+
 import React, { useState } from 'react';
-import { SearchIcon, UserIcon, ChatBubbleIcon } from './icons';
+import { SearchIcon, UserIcon, ChatBubbleIcon, LogoIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 import { View } from '../App';
 
@@ -57,7 +58,7 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
               className="flex items-center space-x-3 cursor-pointer"
               onClick={() => setView('dashboard')}
           >
-            <img src="/asserts/logo2.png" alt="MovieFrd Logo" className="w-9 h-9 object-contain" />
+            <LogoIcon className="w-9 h-9" />
             <span className="text-xl font-bold tracking-wider text-gray-900 dark:text-white">MovieFrd</span>
           </div>
           

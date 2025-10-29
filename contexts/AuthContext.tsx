@@ -3,6 +3,7 @@ import { Session, User, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import { getProfile, getUserMovieLists } from '../supabaseApi';
 import { Profile, UserMovieList } from '../types';
+import { LogoIcon } from '../components/icons';
 
 interface AuthContextType {
   session: Session | null;
@@ -139,7 +140,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   if (loading) {
       return (
           <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center">
-            <img src="/asserts/logo2.png" alt="MovieFrd Logo" className="w-24 h-24 object-contain animate-pulse" />
+            <LogoIcon className="w-24 h-24 animate-pulse" />
             <p className="text-gray-500 dark:text-gray-400 mt-4 font-semibold">Loading your experience...</p>
           </div>
       );

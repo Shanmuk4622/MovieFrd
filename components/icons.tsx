@@ -1,6 +1,27 @@
 
 import React from 'react';
 
+export const LogoIcon: React.FC<{ className?: string }> = ({ className = "w-10 h-10" }) => (
+  <svg viewBox="0 0 258 240" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <defs>
+      <linearGradient id="logo-gradient" x1="36.5" y1="120" x2="195.833" y2="120" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#F85032"/>
+        <stop offset="1" stopColor="#E73827"/>
+      </linearGradient>
+    </defs>
+    <path d="M189.5 106.928C195.833 110.797 195.833 129.203 189.5 133.072L50 221.244C43.6667 225.113 36.5 220.41 36.5 212.922V27.0782C36.5 19.5902 43.6667 14.8872 50 18.7562L189.5 106.928Z" fill="url(#logo-gradient)"/>
+    <g stroke="#E73827" strokeWidth="5" strokeLinecap="round">
+        <circle cx="199" cy="80" r="11" fill="#E73827" />
+        <circle cx="199" cy="160" r="11" fill="#E73827" />
+        <circle cx="245" cy="120" r="11" fill="#E73827" />
+        <path d="M190 120L199 80" />
+        <path d="M190 120L199 160" />
+        <path d="M199 80L245 120" />
+        <path d="M199 160L245 120" />
+    </g>
+  </svg>
+);
+
 export const StarIcon: React.FC<{ className?: string }> = ({ className = "w-6 h-6" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
     <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.007z" clipRule="evenodd" />

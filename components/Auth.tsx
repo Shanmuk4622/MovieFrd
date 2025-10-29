@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { LogoIcon } from './icons';
 
 const Auth: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -53,7 +54,7 @@ const Auth: React.FC = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-3">
-                <img src="/asserts/logo2.png" alt="MovieFrd Logo" className="w-10 h-10 object-contain" />
+                <LogoIcon className="w-10 h-10" />
                 <h1 className="text-4xl font-bold tracking-wider text-gray-900 dark:text-white">MovieFrd</h1>
             </div>
             <p className="text-gray-500 dark:text-gray-400 mt-2">Join the VITAP movie community.</p>
