@@ -5,9 +5,9 @@ import { searchUsers, sendFriendRequest } from '../supabaseApi';
 import { Profile, Friendship } from '../types';
 import { SearchIcon, UserAddIcon, CheckIcon } from './icons';
 
-// FIX: The useDebounce hook was incorrectly implemented and caused several errors.
-// This is a corrected version defined locally. It now correctly imports and uses 
-// useEffect, and avoids duplicate identifier errors.
+// FIX: The useDebounce hook was incorrectly implemented inside the component,
+// violating the Rules of Hooks and causing the app to crash. It has been moved
+// outside the component to be a standalone, correct hook implementation.
 const useDebounce = (value: string, delay: number, callback: (value: string) => void) => {
     useEffect(() => {
         const handler = setTimeout(() => {
