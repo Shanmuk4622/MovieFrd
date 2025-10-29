@@ -419,18 +419,45 @@ export const subscribeToDirectMessages = (
         event: '*', 
         schema: 'public', 
         table: 'direct_messages',
-        filter: `sender_id=in.(${userId1},${userId2})`
+        // FIX: This filter is more specific and efficient than the previous version.
+        filter: `or=(and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1}))`
       },
-      (payload) => {
-        const message = payload.new as DirectMessage;
-        // Only process if the message is part of this specific conversation
-        if ((message.sender_id === userId1 && message.receiver_id === userId2) ||
-            (message.sender_id === userId2 && message.receiver_id === userId1)) {
-            onMessageEvent(payload);
-        }
-      }
+      onMessageEvent
     )
     .subscribe();
+
+  return channel;
+};
+
+/**
+ * Subscribes to all direct message events (inserts, updates, deletes)
+ * where the given user is either the sender or the receiver.
+ * This is more efficient than subscribing to individual conversations.
+ */
+export const subscribeToAllDirectMessagesForUser = (
+  userId: string,
+  onMessageEvent: (payload: any) => void
+): RealtimeChannel => {
+  // Use a unique, stable channel name for the user
+  const channel = supabase.channel(`dms-for-${userId}`);
+  
+  channel
+    .on(
+      'postgres_changes',
+      { 
+        event: '*', 
+        schema: 'public', 
+        table: 'direct_messages',
+        // RLS policies will still apply, but this filter efficiently narrows down events
+        filter: `or=(sender_id.eq.${userId},receiver_id.eq.${userId})` 
+      },
+      onMessageEvent
+    )
+    .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
+            console.error(`Failed to subscribe to DMs:`, err);
+        }
+    });
 
   return channel;
 };
