@@ -138,17 +138,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   if (loading) {
       return (
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center">
+            <img src="/asserts/logo2.png" alt="MovieFrd Logo" className="w-24 h-24 object-contain animate-pulse" />
+            <p className="text-gray-500 dark:text-gray-400 mt-4 font-semibold">Loading your experience...</p>
           </div>
       );
   }
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

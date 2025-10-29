@@ -62,12 +62,18 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
   const TabButton: React.FC<{ tab: Tab; label: string; count: number }> = ({ tab, label, count }) => (
     <button
       onClick={() => setActiveTab(tab)}
-      className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors relative flex items-center ${
+      className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors relative flex items-center gap-2 ${
         activeTab === tab ? 'bg-red-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
       }`}
     >
       <span>{label}</span>
-      <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400 font-normal">({count})</span>
+      <span className={`flex items-center justify-center text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 ${
+          activeTab === tab 
+            ? 'bg-white text-red-600' 
+            : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
+      }`}>
+        {count}
+      </span>
     </button>
   );
 

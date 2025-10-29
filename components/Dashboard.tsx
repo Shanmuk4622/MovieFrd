@@ -18,6 +18,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
   const { user } = useAuth();
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
+  const [upcomingMovies, setUpcomingMovies] = useState<Movie[]>([]);
   const [friendActivity, setFriendActivity] = useState<UserActivity[]>([]);
   const [loadingMovies, setLoadingMovies] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(true);
@@ -26,12 +27,14 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
     const loadMovies = async () => {
       setLoadingMovies(true);
       try {
-        const [popular, trending] = await Promise.all([
+        const [popular, trending, upcoming] = await Promise.all([
             fetchMovies('/movie/popular'),
-            fetchMovies('/movie/top_rated')
+            fetchMovies('/movie/top_rated'),
+            fetchMovies('/movie/upcoming')
         ]);
         setPopularMovies(popular);
         setTrendingMovies(trending);
+        setUpcomingMovies(upcoming);
       } catch (error) {
         console.error("Failed to load dashboard movies", error);
       } finally {
@@ -102,6 +105,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
             <>
                 <MovieListSkeleton />
                 <MovieListSkeleton />
+                <MovieListSkeleton />
             </>
         ) : (
             <>
@@ -115,6 +119,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
                 <MovieList 
                   title="Trending at VITAP" 
                   movies={trendingMovies} 
+                  userMovieLists={userMovieLists}
+                  onListUpdate={onListUpdate}
+                  onSelectMovie={onSelectMovie}
+                />
+                <MovieList 
+                  title="Explore Upcoming Movies" 
+                  movies={upcomingMovies} 
                   userMovieLists={userMovieLists}
                   onListUpdate={onListUpdate}
                   onSelectMovie={onSelectMovie}
