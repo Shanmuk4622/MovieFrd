@@ -124,7 +124,13 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
         }
 
         if (eventType === 'INSERT') {
-            setMessages(prev => [...prev, newMessage]);
+            setMessages(prev => {
+                // Prevent adding a duplicate message if it was already added from the send response
+                if (prev.some(m => m.id === newMessage.id)) {
+                    return prev;
+                }
+                return [...prev, newMessage];
+            });
         }
         if (eventType === 'UPDATE') {
             setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
@@ -198,10 +204,14 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
   const handleSendMessage = useCallback(async (content: string) => {
     if (!user || !activeConversation || !content.trim()) return;
     try {
+        let newMessage: ChatMessage | DirectMessage | null = null;
         if (activeConversation.type === 'room') {
-            await sendMessage(activeConversation.id, user.id, content.trim());
+            newMessage = await sendMessage(activeConversation.id, user.id, content.trim());
         } else {
-            await sendDirectMessage(user.id, activeConversation.id, content.trim());
+            newMessage = await sendDirectMessage(user.id, activeConversation.id, content.trim());
+        }
+        if (newMessage) {
+            setMessages(prev => [...prev, newMessage]);
         }
     } catch (error) {
       console.error("Failed to send message", error);
