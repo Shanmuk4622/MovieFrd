@@ -58,7 +58,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
           return;
         }
 
-        const movieIds = [...new Set(activitiesFromDb.map(a => a.tmdb_movie_id))];
+        // FIX: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+        // Explicitly convert tmdb_movie_id to a number to fix type inference issues.
+        const movieIds = [...new Set(activitiesFromDb.map(a => Number(a.tmdb_movie_id)))];
         
         const movieDetailsPromises = movieIds.map(id => fetchMovieDetails(id));
         const movieDetailsResults = await Promise.all(movieDetailsPromises);
@@ -72,7 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
 
         const formattedActivities: UserActivity[] = activitiesFromDb
           .map(activity => {
-            const movie = movieDetailsMap.get(activity.tmdb_movie_id);
+            const movie = movieDetailsMap.get(Number(activity.tmdb_movie_id));
             if (!movie || !activity.profiles) {
               return null;
             }

@@ -10,10 +10,10 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
-    // FIX: Disable automatic background refresh to handle it manually and more robustly.
+    // 🔒 disable race-prone background refresh
     autoRefreshToken: false,
     detectSessionInUrl: true,
-    // FIX: Enforce localStorage as the single, consistent storage source to prevent conflicts.
+    // ✅ use only localStorage for consistency
     storage: localStorage,
   },
 });

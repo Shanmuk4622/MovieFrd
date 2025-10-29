@@ -54,7 +54,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchUserDependentData = useCallback(async (user: User) => {
-    // This function remains the same, fetching profile and lists.
     const [profileData, movieListsData] = await Promise.all([
       getProfile(user.id),
       getUserMovieLists(user.id)
@@ -77,49 +76,77 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
+  // FIX: Replaced session management with a hybrid model to fix race conditions.
   useEffect(() => {
-    setLoading(true);
+    let mounted = true;
 
-    // This listener handles all auth events: INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED.
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    const syncSession = async () => {
+      console.log('🔁 Syncing session...');
       try {
-        if (newSession) {
-          // FIX: Explicitly set the session in the client. This is the core of the fix,
-          // ensuring the client's in-memory state is always synchronized with storage,
-          // which is crucial after a token refresh.
-          await supabase.auth.setSession(newSession);
-
-          setSession(newSession);
-          const currentUser = newSession.user;
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        console.log('✅ Session fetched:', data.session);
+        if (mounted) {
+          const currentSession = data.session;
+          setSession(currentSession);
+          const currentUser = currentSession?.user ?? null;
           setUser(currentUser);
-          // Fetch dependent data only after we have a confirmed user.
-          await fetchUserDependentData(currentUser);
-        } else {
-          // If no session is found, clear all user-specific data.
+          if (currentUser) {
+            await fetchUserDependentData(currentUser);
+          } else {
+            setProfile(null);
+            setUserMovieLists([]);
+          }
+        }
+      } catch (err: any) {
+        console.error('❌ Session sync failed:', err.message);
+        // Force sign out on corrupted session to prevent getting stuck.
+        await supabase.auth.signOut();
+        if (mounted) {
           setSession(null);
           setUser(null);
           setProfile(null);
           setUserMovieLists([]);
         }
-      } catch (error) {
-        // FIX: If any error occurs (e.g., fetching profile fails or token is corrupted),
-        // log it and force a sign-out to clear the invalid state, preventing the app from getting stuck.
-        console.error("Error handling auth state change. Signing out to clear corrupted state.", error);
-        await supabase.auth.signOut();
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setUserMovieLists([]);
       } finally {
-        // FIX: This `finally` block GUARANTEES that the loading screen is removed,
-        // even if an error occurs during the process.
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    });
+    };
+
+    // Force initial session sync on app load.
+    syncSession();
+
+    // Listen for auth events (SIGN_IN, SIGN_OUT, TOKEN_REFRESHED).
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        console.log('⚡ Auth event:', event);
+        if (mounted) {
+          if (newSession) {
+            // Manually sync Supabase client state to prevent stale tokens.
+            await supabase.auth.setSession(newSession);
+            setSession(newSession);
+            const currentUser = newSession.user;
+            setUser(currentUser);
+            // Re-fetch data if user context changes (e.g., login).
+            if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+              await fetchUserDependentData(currentUser);
+            }
+          } else {
+            // If session is null, clear all user-specific data.
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            setUserMovieLists([]);
+          }
+        }
+      }
+    );
 
     return () => {
-      // Clean up the listener when the component unmounts.
-      authListener?.subscription.unsubscribe();
+      mounted = false;
+      authListener.subscription.unsubscribe();
     };
   }, [fetchUserDependentData]);
 

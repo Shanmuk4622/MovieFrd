@@ -6,6 +6,11 @@
     <title>MovieFrd</title>
     <link rel="icon" href="data:image/svg+xml,%3csvg viewBox='0 0 258 240' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M189.5 106.928C195.833 110.797 195.833 129.203 189.5 133.072L50 221.244C43.6667 225.113 36.5 220.41 36.5 212.922V27.0782C36.5 19.5902 43.6667 14.8872 50 18.7562L189.5 106.928Z' fill='%23E73827'/%3e%3cg stroke='%23E73827' stroke-width='5' stroke-linecap='round'%3e%3ccircle cx='199' cy='80' r='11' fill='%23E73827'/%3e%3ccircle cx='199' cy='160' r='11' fill='%23E73827'/%3e%3ccircle cx='245' cy='120' r='11' fill='%23E73827'/%3e%3cpath d='M190 120L199 80'/%3e%3cpath d='M190 120L199 160'/%3e%3cpath d='M199 80L245 120'/%3e%3cpath d='M199 160L245 120'/%3e%3c/g%3e%3c/svg%3e" type="image/svg+xml">
     <script>
+      // Global error listeners for debugging
+      window.addEventListener('error', (e) => console.error('Global error:', e.message, e.filename, e.lineno, e.colno, e.error));
+      window.addEventListener('unhandledrejection', (e) => console.error('Unhandled promise rejection:', e.reason));
+    </script>
+    <script>
       // HACK: This is a workaround to suppress the Tailwind CDN production warning in this development environment.
       // In a real production setup, Tailwind CSS should be installed and built via a PostCSS pipeline.
       const originalWarn = console.warn;
