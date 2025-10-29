@@ -9,7 +9,7 @@ import { fetchMovieDetails } from '../api';
 import MovieList from './MovieList';
 import UserDiscovery from './UserSearch';
 import FriendList from './FriendList';
-import { UserIcon } from './icons';
+import { UserIcon, SunIcon, MoonIcon } from './icons';
 import { MovieListSkeleton } from './skeletons';
 
 interface ProfileProps {
@@ -20,7 +20,7 @@ interface ProfileProps {
 }
 
 const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
-  const { user, profile, refreshProfile, signOut } = useAuth();
+  const { user, profile, refreshProfile, signOut, theme, toggleTheme } = useAuth();
   const [watched, setWatched] = useState<Movie[]>([]);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
   const [loadingMovies, setLoadingMovies] = useState(true);
@@ -140,16 +140,25 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 md:px-0">
         <div className="md:col-span-2">
-            <div className="flex items-center space-x-4 mb-8 p-4 bg-white dark:bg-gray-800/50 rounded-lg shadow-sm">
-                {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt={profile.username} className="w-16 h-16 rounded-full object-cover" />
-                ) : (
-                  <UserIcon className="w-16 h-16 text-gray-500 dark:text-gray-400" />
-                )}
-                <div>
-                  <h1 className="text-3xl font-bold">{profile.username}</h1>
-                  <p className="text-gray-500 dark:text-gray-400">{user.email}</p>
+            <div className="flex items-center justify-between space-x-4 mb-8 p-4 bg-white dark:bg-gray-800/50 rounded-lg shadow-sm">
+                <div className="flex items-center space-x-4 min-w-0">
+                    {profile.avatar_url ? (
+                      <img src={profile.avatar_url} alt={profile.username} className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <UserIcon className="w-16 h-16 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <h1 className="text-3xl font-bold truncate">{profile.username}</h1>
+                      <p className="text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                    </div>
                 </div>
+                <button
+                  onClick={toggleTheme}
+                  className="p-3 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50 hover:text-red-500 transition-colors flex-shrink-0"
+                  aria-label="Toggle theme"
+                >
+                  {theme === 'dark' ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
+                </button>
             </div>
 
             <div className="p-4 bg-white dark:bg-gray-800/50 rounded-lg mb-8 shadow-sm">

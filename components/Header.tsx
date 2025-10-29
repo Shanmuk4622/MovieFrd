@@ -10,7 +10,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
-  const { user, profile, theme, toggleTheme } = useAuth();
+  const { user, profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchSubmit = () => {
@@ -69,13 +69,6 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
 
           {/* Right-side navigation */}
           <div className="flex items-center space-x-2 sm:space-x-4">
-             <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50 hover:text-red-500 transition-colors"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
-            </button>
              <button
               onClick={() => setView('chat')}
               className="p-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50 hover:text-red-500 transition-colors"

@@ -1,38 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
-// FIX: UserMovieList is now imported from types.ts
-import { Movie, UserActivity, UserMovieList } from '../types';
-import { fetchMovies } from '../api';
+import { Movie, UserActivity, UserMovieList, Profile } from '../types';
+import { fetchMovies, fetchMovieDetails } from '../api';
+import { getFriendActivity } from '../supabaseApi';
 import { MovieListSkeleton, ActivitySkeleton } from './skeletons';
-
-// Friend activity will remain mocked for now, as it requires user auth and a database.
-const mockActivities: UserActivity[] = [
-    { 
-        id: 1, 
-        userName: "Rohan", 
-        userAvatarUrl: "https://picsum.photos/seed/rohan/100", 
-        action: "added to watchlist", 
-        movie: { id: 9, title: "Salaar: Part 1 – Ceasefire", posterUrl: "https://picsum.photos/seed/salaar/400/600", rating: 7.8 },
-        timestamp: "2 hours ago" 
-    },
-    { 
-        id: 2, 
-        userName: "Priya", 
-        userAvatarUrl: "https://picsum.photos/seed/priya/100", 
-        action: "watched", 
-        movie: { id: 5, title: "Oppenheimer", posterUrl: "https://picsum.photos/seed/oppenheimer/400/600", rating: 8.6 },
-        timestamp: "5 hours ago" 
-    },
-    { 
-        id: 3, 
-        userName: "Amit", 
-        userAvatarUrl: "https://picsum.photos/seed/amit/100", 
-        action: "watched", 
-        movie: { id: 2, title: "Interstellar", posterUrl: "https://picsum.photos/seed/interstellar/400/600", rating: 9.2 },
-        timestamp: "1 day ago" 
-    },
-];
+import { useAuth } from '../contexts/AuthContext';
+import { formatTimeAgo } from '../utils';
 
 interface DashboardProps {
   userMovieLists: UserMovieList[];
@@ -41,13 +15,16 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
+  const { user } = useAuth();
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [friendActivity, setFriendActivity] = useState<UserActivity[]>([]);
+  const [loadingMovies, setLoadingMovies] = useState(true);
+  const [loadingActivity, setLoadingActivity] = useState(true);
 
   useEffect(() => {
     const loadMovies = async () => {
-      setLoading(true);
+      setLoadingMovies(true);
       try {
         const [popular, trending] = await Promise.all([
             fetchMovies('/movie/popular'),
@@ -58,17 +35,70 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
       } catch (error) {
         console.error("Failed to load dashboard movies", error);
       } finally {
-        setLoading(false);
+        setLoadingMovies(false);
       }
     };
     
     loadMovies();
   }, []);
 
+  useEffect(() => {
+    const loadFriendActivity = async () => {
+      if (!user) return;
+      setLoadingActivity(true);
+
+      try {
+        const rawActivity = await getFriendActivity(user.id);
+        
+        if (rawActivity && rawActivity.length > 0) {
+          const movieIds = [...new Set(rawActivity.map(a => a.tmdb_movie_id))];
+          const moviePromises = movieIds.map(id => fetchMovieDetails(id));
+          const movieResults = await Promise.all(moviePromises);
+          
+          const moviesMap = new Map<number, Movie>();
+          movieResults.forEach(movie => {
+            if (movie) moviesMap.set(movie.id, movie);
+          });
+          
+          const formattedActivity: UserActivity[] = rawActivity
+            .map(activity => {
+              const movie = moviesMap.get(activity.tmdb_movie_id);
+              // Supabase join returns the profile in a 'profiles' property
+              const profile = activity.profiles as Profile | null;
+
+              if (!movie || !profile) return null;
+
+              return {
+                id: activity.id,
+                userName: profile.username,
+                userAvatarUrl: profile.avatar_url || `https://picsum.photos/seed/${profile.id}/100`,
+                action: activity.list_type === 'watched' ? 'watched' : 'added to watchlist',
+                movie: movie,
+                timestamp: formatTimeAgo(activity.created_at),
+              };
+            })
+            .filter((a): a is UserActivity => a !== null);
+          
+          setFriendActivity(formattedActivity);
+        } else {
+            setFriendActivity([]);
+        }
+
+      } catch (error) {
+        console.error("Failed to load friend activity:", error);
+        setFriendActivity([]);
+      } finally {
+        setLoadingActivity(false);
+      }
+    };
+
+    loadFriendActivity();
+  }, [user]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 lg:px-0">
       <div className="lg:col-span-2">
-        {loading ? (
+        {loadingMovies ? (
             <>
                 <MovieListSkeleton />
                 <MovieListSkeleton />
@@ -94,13 +124,18 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
       </div>
       <div className="lg:col-span-1">
         <h2 className="text-2xl md:text-3xl font-bold mb-4">Friend Activity</h2>
-        {loading ? (
+        {loadingActivity ? (
             <ActivitySkeleton />
-        ) : (
+        ) : friendActivity.length > 0 ? (
             <div className="space-y-4">
-              {mockActivities.map(activity => (
+              {friendActivity.map(activity => (
                 <ActivityCard key={activity.id} activity={activity} />
               ))}
+            </div>
+        ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 text-center text-gray-500 dark:text-gray-400">
+                <p className="font-semibold text-gray-800 dark:text-white">No recent activity</p>
+                <p className="text-sm mt-1">Your friends haven't been active recently. Add some friends to see their updates here!</p>
             </div>
         )}
       </div>

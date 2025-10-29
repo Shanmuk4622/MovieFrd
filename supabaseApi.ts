@@ -90,6 +90,42 @@ export const removeMovieFromList = async (userId: string, movieId: number) => {
     return data;
 };
 
+// --- New Function for Friend Activity ---
+export const getFriendActivity = async (userId: string) => {
+    // Step 1: Get the list of accepted friend IDs
+    const { data: friendships, error: friendsError } = await supabase
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+        .eq('status', 'accepted');
+
+    if (friendsError) {
+        console.error("Error fetching friends for activity feed:", friendsError);
+        return [];
+    }
+    
+    const friendIds = friendships.map(f => f.requester_id === userId ? f.addressee_id : f.requester_id);
+
+    if (friendIds.length === 0) {
+        return [];
+    }
+
+    // Step 2: Fetch the latest 20 activities from those friends, joining their profile info
+    const { data, error } = await supabase
+        .from('user_movie_lists')
+        .select('*, profiles(*)')
+        .in('user_id', friendIds)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+    if (error) {
+        console.error("Error fetching friend activity:", error);
+        return [];
+    }
+    return data;
+};
+
+
 // --- Chat Functions ---
 
 export const getChatRooms = async (): Promise<ChatRoom[]> => {
