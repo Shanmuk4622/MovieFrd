@@ -1,10 +1,44 @@
-
-
-
 import React, { useState } from 'react';
 import { SearchIcon, UserIcon, ChatBubbleIcon, LogoIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 import { View } from '../App';
+
+interface SearchInputProps {
+    query: string;
+    setQuery: (query: string) => void;
+    onSubmit: () => void;
+}
+
+// Standalone SearchInput component to prevent focus loss on re-renders.
+const SearchInput: React.FC<SearchInputProps> = ({ query, setQuery, onSubmit }) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            onSubmit();
+        }
+    };
+    
+    return (
+        <div className="relative w-full">
+            <input
+                type="text"
+                placeholder="Search for a movie..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="w-full bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <button
+                type="button"
+                onClick={onSubmit}
+                aria-label="Submit search"
+                className="absolute left-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+            >
+                <SearchIcon className="w-5 h-5" />
+            </button>
+        </div>
+    );
+};
+
 
 interface HeaderProps {
     setView: (view: View) => void;
@@ -18,36 +52,11 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
   const handleSearchSubmit = () => {
     if (searchQuery.trim()) {
       onSearch(searchQuery.trim());
-      setSearchQuery('');
+      // FIX: Do not clear the search query immediately after search
+      // to allow the user to see what they searched for.
+      // The query will be cleared when the view changes.
     }
   };
-
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSearchSubmit();
-    }
-  };
-
-  const SearchInput = () => (
-    <div className="relative w-full">
-      <input
-        type="text"
-        placeholder="Search for a movie..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        onKeyDown={handleSearchKeyDown}
-        className="w-full bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
-      />
-      <button
-        type="button"
-        onClick={handleSearchSubmit}
-        aria-label="Submit search"
-        className="absolute left-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
-      >
-        <SearchIcon className="w-5 h-5" />
-      </button>
-    </div>
-  );
 
   return (
     <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 p-4 shadow-lg shadow-gray-200/60 dark:shadow-black/20">
@@ -65,7 +74,11 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
           {/* Desktop Search */}
           <div className="hidden md:flex flex-1 justify-center px-4 lg:px-8">
             <div className="w-full max-w-lg">
-              <SearchInput />
+              <SearchInput 
+                query={searchQuery}
+                setQuery={setSearchQuery}
+                onSubmit={handleSearchSubmit}
+              />
             </div>
           </div>
 
@@ -100,7 +113,11 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
         
         {/* Mobile Search */}
         <div className="md:hidden mt-4">
-          <SearchInput />
+          <SearchInput 
+            query={searchQuery}
+            setQuery={setSearchQuery}
+            onSubmit={handleSearchSubmit}
+          />
         </div>
       </div>
     </header>
