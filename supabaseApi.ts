@@ -124,10 +124,14 @@ export const createChatRoom = async (
 };
 
 export const getRoomMessages = async (roomId: number): Promise<ChatMessage[]> => {
+  // Messages in rooms disappear after 12 hours.
+  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase
     .from('room_messages')
     .select('*, profiles(*)')
     .eq('room_id', roomId)
+    .gte('created_at', twelveHoursAgo) // Filter for recent messages
     .order('created_at', { ascending: true });
   
   if (error) {
@@ -241,10 +245,14 @@ export const removeFriendship = async (friendshipId: number) => {
 };
 
 export const getDirectMessages = async (userId1: string, userId2: string): Promise<DirectMessage[]> => {
+    // Direct messages disappear after 3 days.
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+
     const { data, error } = await supabase
         .from('direct_messages')
         .select('*, profiles:sender_id(*)')
         .or(`(sender_id.eq.${userId1},receiver_id.eq.${userId2}),(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
+        .gte('created_at', threeDaysAgo) // Filter for recent messages
         .order('created_at', { ascending: true });
 
     if (error) {

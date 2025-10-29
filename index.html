@@ -5,7 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MovieFrd</title>
+    <script>
+      // HACK: This is a workaround to suppress the Tailwind CDN production warning in this development environment.
+      // In a real production setup, Tailwind CSS should be installed and built via a PostCSS pipeline.
+      const originalWarn = console.warn;
+      console.warn = function(message) {
+        if (message && message.includes('cdn.tailwindcss.com should not be used in production')) {
+          return; // Suppress the specific warning
+        }
+        // For all other warnings, use the original console.warn
+        originalWarn.apply(console, arguments);
+      };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Restore the original console.warn
+      console.warn = originalWarn;
+    </script>
     <style>
       /* Custom scrollbar for webkit browsers */
       ::-webkit-scrollbar {

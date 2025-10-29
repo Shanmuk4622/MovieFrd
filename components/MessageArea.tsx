@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { ChatMessage, DirectMessage, Profile } from '../types';
 import { Conversation } from './Chat';
-import { UserIcon, MenuIcon, CheckIcon, CheckDoubleIcon } from './icons';
+import { UserIcon, MenuIcon, CheckIcon, CheckDoubleIcon, ClockIcon } from './icons';
 
 interface MessageAreaProps {
   user: User;
@@ -84,6 +84,17 @@ const TypingIndicator: React.FC<{ users: Profile[] }> = ({ users }) => {
     );
 };
 
+const getEphemeralMessage = (conversation: Conversation | null) => {
+    if (!conversation) return null;
+    if (conversation.type === 'room') {
+        return 'Messages in this room disappear after 12 hours.';
+    }
+    if (conversation.type === 'dm') {
+        return 'Messages in this conversation disappear after 3 days.';
+    }
+    return null;
+};
+
 
 const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile, onMarkAsSeen }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
@@ -139,6 +150,7 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
   
   const conversationName = conversation ? (conversation.type === 'room' ? conversation.name : conversation.username) : 'Loading...';
   const conversationDescription = conversation ? (conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`) : 'Please wait';
+  const ephemeralMessage = getEphemeralMessage(conversation);
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
@@ -158,6 +170,12 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                 {conversationName}
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[calc(100vw-120px)]">{conversationDescription || 'Welcome!'}</p>
+            {ephemeralMessage && (
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1 flex items-center gap-1.5">
+                    <ClockIcon className="w-3 h-3" />
+                    {ephemeralMessage}
+                </p>
+            )}
         </div>
       </div>
        {isLoading ? (
