@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 // FIX: UserMovieList is now imported from types.ts
@@ -9,6 +10,7 @@ import MovieList from './MovieList';
 import UserSearch from './UserSearch';
 import FriendList from './FriendList';
 import { UserIcon } from './icons';
+import { MovieListSkeleton } from './skeletons';
 
 interface ProfileProps {
   userMovieLists: UserMovieList[];
@@ -22,6 +24,7 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
   const [loadingMovies, setLoadingMovies] = useState(true);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
+  const [loadingFriendships, setLoadingFriendships] = useState(true);
 
   // Avatar upload states
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -30,8 +33,15 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
 
   const fetchFriendships = useCallback(async () => {
     if (!user) return;
-    const data = await getFriendships(user.id);
-    setFriendships(data);
+    setLoadingFriendships(true);
+    try {
+        const data = await getFriendships(user.id);
+        setFriendships(data);
+    } catch (error) {
+        console.error("Failed to fetch friendships", error);
+    } finally {
+        setLoadingFriendships(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -154,7 +164,10 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
             </div>
             
             {loadingMovies ? (
-                <div className="text-center p-8">Fetching your movie lists...</div>
+                <>
+                    <MovieListSkeleton />
+                    <MovieListSkeleton />
+                </>
             ) : (
                 <>
                 <MovieList 
@@ -186,7 +199,7 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
         <div className="md:col-span-1">
             <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 space-y-6 shadow-sm">
                 <UserSearch currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
-                <FriendList currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
+                <FriendList currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} isLoading={loadingFriendships} />
             </div>
         </div>
     </div>

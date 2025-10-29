@@ -1,19 +1,22 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Friendship } from '../types';
 import { updateFriendship, removeFriendship } from '../supabaseApi';
 import { CheckIcon, UserGroupIcon, XIcon } from './icons';
+import { FriendListSkeleton } from './skeletons';
 
 interface FriendListProps {
   currentUser: User;
   friendships: Friendship[];
   onFriendAction: () => void;
+  isLoading: boolean;
 }
 
 type Tab = 'friends' | 'incoming' | 'pending';
 
-const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFriendAction }) => {
+const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFriendAction, isLoading }) => {
   const [activeTab, setActiveTab] = useState<Tab>('friends');
 
   const { friends, incomingRequests, pendingRequests } = useMemo(() => {
@@ -84,30 +87,36 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
       </div>
 
       <div className="space-y-2 max-h-80 overflow-y-auto">
-        {activeTab === 'friends' && friends.map(f => {
-          const friend = f.requester_id === currentUser.id ? f.addressee : f.requester;
-          return (
-            <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
-              <span>{friend.username}</span>
-              <button onClick={() => handleRemoveFriend(f.id)} className="text-gray-500 dark:text-gray-400 hover:text-red-500"><XIcon className="w-4 h-4"/></button>
-            </div>
-          )
-        })}
-        {activeTab === 'incoming' && incomingRequests.map(f => (
-          <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
-            <span>{f.requester.username}</span>
-            <div className="flex space-x-2">
-                <button onClick={() => handleRequestAction(f.id, true)} className="text-green-400 hover:text-green-300"><CheckIcon className="w-5 h-5"/></button>
-                <button onClick={() => handleRequestAction(f.id, false)} className="text-red-500 hover:text-red-400"><XIcon className="w-5 h-5"/></button>
-            </div>
-          </div>
-        ))}
-        {activeTab === 'pending' && pendingRequests.map(f => (
-           <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm text-gray-500 dark:text-gray-400">
-            <span>{f.addressee.username}</span>
-            <span>Pending...</span>
-          </div>
-        ))}
+        {isLoading ? (
+            <FriendListSkeleton />
+        ) : (
+            <>
+                {activeTab === 'friends' && friends.map(f => {
+                  const friend = f.requester_id === currentUser.id ? f.addressee : f.requester;
+                  return (
+                    <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
+                      <span>{friend.username}</span>
+                      <button onClick={() => handleRemoveFriend(f.id)} className="text-gray-500 dark:text-gray-400 hover:text-red-500"><XIcon className="w-4 h-4"/></button>
+                    </div>
+                  )
+                })}
+                {activeTab === 'incoming' && incomingRequests.map(f => (
+                  <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
+                    <span>{f.requester.username}</span>
+                    <div className="flex space-x-2">
+                        <button onClick={() => handleRequestAction(f.id, true)} className="text-green-400 hover:text-green-300"><CheckIcon className="w-5 h-5"/></button>
+                        <button onClick={() => handleRequestAction(f.id, false)} className="text-red-500 hover:text-red-400"><XIcon className="w-5 h-5"/></button>
+                    </div>
+                  </div>
+                ))}
+                {activeTab === 'pending' && pendingRequests.map(f => (
+                   <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm text-gray-500 dark:text-gray-400">
+                    <span>{f.addressee.username}</span>
+                    <span>Pending...</span>
+                  </div>
+                ))}
+            </>
+        )}
       </div>
     </div>
   );

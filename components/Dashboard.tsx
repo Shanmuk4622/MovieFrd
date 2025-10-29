@@ -4,6 +4,7 @@ import ActivityCard from './ActivityCard';
 // FIX: UserMovieList is now imported from types.ts
 import { Movie, UserActivity, UserMovieList } from '../types';
 import { fetchMovies } from '../api';
+import { MovieListSkeleton } from './skeletons';
 
 // Friend activity will remain mocked for now, as it requires user auth and a database.
 const mockActivities: UserActivity[] = [
@@ -42,14 +43,23 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadMovies = async () => {
-      const popular = await fetchMovies('/movie/popular');
-      setPopularMovies(popular);
-
-      const trending = await fetchMovies('/movie/top_rated');
-      setTrendingMovies(trending);
+      setLoading(true);
+      try {
+        const [popular, trending] = await Promise.all([
+            fetchMovies('/movie/popular'),
+            fetchMovies('/movie/top_rated')
+        ]);
+        setPopularMovies(popular);
+        setTrendingMovies(trending);
+      } catch (error) {
+        console.error("Failed to load dashboard movies", error);
+      } finally {
+        setLoading(false);
+      }
     };
     
     loadMovies();
@@ -58,20 +68,29 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 lg:px-0">
       <div className="lg:col-span-2">
-        <MovieList 
-          title="Popular on TMDB" 
-          movies={popularMovies} 
-          userMovieLists={userMovieLists}
-          onListUpdate={onListUpdate}
-          onSelectMovie={onSelectMovie}
-        />
-        <MovieList 
-          title="Trending at VITAP" 
-          movies={trendingMovies} 
-          userMovieLists={userMovieLists}
-          onListUpdate={onListUpdate}
-          onSelectMovie={onSelectMovie}
-        />
+        {loading ? (
+            <>
+                <MovieListSkeleton />
+                <MovieListSkeleton />
+            </>
+        ) : (
+            <>
+                <MovieList 
+                  title="Popular on TMDB" 
+                  movies={popularMovies} 
+                  userMovieLists={userMovieLists}
+                  onListUpdate={onListUpdate}
+                  onSelectMovie={onSelectMovie}
+                />
+                <MovieList 
+                  title="Trending at VITAP" 
+                  movies={trendingMovies} 
+                  userMovieLists={userMovieLists}
+                  onListUpdate={onListUpdate}
+                  onSelectMovie={onSelectMovie}
+                />
+            </>
+        )}
       </div>
       <div className="lg:col-span-1">
         <h2 className="text-2xl md:text-3xl font-bold mb-4">Friend Activity</h2>

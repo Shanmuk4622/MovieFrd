@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { searchUsers, sendFriendRequest } from '../supabaseApi';
@@ -84,13 +85,15 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUser, friendships, onFri
           className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-md py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
         />
         <div className="absolute left-3 top-1/2 -translate-y-1/2">
-          <SearchIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500 dark:border-gray-400"></div>
+            ) : (
+                <SearchIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            )}
         </div>
       </div>
 
       {error && <div className="mt-2 text-sm text-red-400 bg-red-500/10 p-2 rounded-md">{error}</div>}
-
-      {loading && <div className="text-center py-2 text-sm text-gray-500 dark:text-gray-400">Searching...</div>}
 
       <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
         {results.map(user => {
