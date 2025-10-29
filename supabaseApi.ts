@@ -93,14 +93,23 @@ export const removeMovieFromList = async (userId: string, movieId: number) => {
 // --- Chat Functions ---
 
 export const getChatRooms = async (): Promise<ChatRoom[]> => {
-  const { data, error } = await supabase
-    .from('chat_rooms')
-    .select('*')
-    .order('name', { ascending: true });
+  // This now calls a database function to efficiently filter out inactive rooms.
+  // The user must add this function to their Supabase project. See `supabase/functions.sql`.
+  const { data, error } = await supabase.rpc('get_visible_chat_rooms');
 
   if (error) {
-    console.error('Error fetching chat rooms:', error);
-    return [];
+    console.error('Error fetching chat rooms via RPC. Did you add the `get_visible_chat_rooms` function to your Supabase project? Falling back to fetching all rooms.', error);
+    // Fallback for users who haven't added the function yet, so the app doesn't break.
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('chat_rooms')
+      .select('*')
+      .order('name', { ascending: true });
+    
+    if (fallbackError) {
+      console.error('Error fetching chat rooms on fallback:', fallbackError);
+      return [];
+    }
+    return fallbackData || [];
   }
   return data || [];
 };
