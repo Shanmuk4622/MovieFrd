@@ -83,28 +83,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user]);
 
   useEffect(() => {
-    // onAuthStateChange is called once with the initial session,
-    // and then every time the auth state changes. This is the single
-    // source of truth for the session and prevents race conditions.
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
-      const currentUser = newSession?.user ?? null;
-      setUser(currentUser);
+    // Set loading to true on initial mount to show the splash screen.
+    setLoading(true);
 
-      if (currentUser) {
-        await fetchUserDependentData(currentUser);
-      } else {
-        // Clear user-specific data on logout
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      try {
+        // This callback handles all auth events: INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED.
+        setSession(newSession);
+        const currentUser = newSession?.user ?? null;
+        setUser(currentUser);
+
+        if (currentUser) {
+          // If we have a user, fetch their associated profile and movie list data.
+          await fetchUserDependentData(currentUser);
+        } else {
+          // If no user is signed in, clear all user-specific data.
+          setProfile(null);
+          setUserMovieLists([]);
+        }
+      } catch (error) {
+        // If any error occurs (e.g., network issue, stale session), log it and clear the user state.
+        console.error("A critical error occurred during authentication state change:", error);
+        setSession(null);
+        setUser(null);
         setProfile(null);
         setUserMovieLists([]);
+      } finally {
+        // CRITICAL: This `finally` block GUARANTEES that the loading screen is removed,
+        // even if an error occurs. This prevents the app from getting stuck.
+        setLoading(false);
       }
-
-      // The initial session check is complete, we can stop loading.
-      // This will only matter on the first run.
-      setLoading(false);
     });
 
     return () => {
+      // Clean up the listener when the component unmounts to prevent memory leaks.
       authListener?.subscription.unsubscribe();
     };
   }, [fetchUserDependentData]);
