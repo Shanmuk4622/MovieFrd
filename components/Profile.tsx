@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 // FIX: UserMovieList is now imported from types.ts
 import { getFriendships, uploadAvatar } from '../supabaseApi';
@@ -7,7 +7,7 @@ import { fetchMovieDetails } from '../api';
 import MovieList from './MovieList';
 import UserDiscovery from './UserSearch';
 import FriendList from './FriendList';
-import { UserIcon, SunIcon, MoonIcon } from './icons';
+import { UserIcon, SunIcon, MoonIcon, PencilIcon } from './icons';
 import { MovieListSkeleton } from './skeletons';
 
 interface ProfileProps {
@@ -26,7 +26,7 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
   const [loadingFriendships, setLoadingFriendships] = useState(true);
 
   // Avatar upload states
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   
@@ -91,31 +91,26 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
     }
   }, [user, userMovieLists]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files && files.length > 0) {
-      setAvatarFile(files[0]);
-      setUploadError(null);
-    }
-  };
+    if (!files || files.length === 0 || !user) return;
 
-  const handleAvatarUpload = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!avatarFile || !user) return;
-
+    const file = files[0];
     setUploading(true);
     setUploadError(null);
+
     try {
-      await uploadAvatar(user.id, avatarFile);
+      await uploadAvatar(user.id, file);
       await refreshProfile(); // Refresh global profile state
-      setAvatarFile(null); // Clear selection
-      const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
     } catch (error: any) {
-      setUploadError(error.message || "Failed to upload avatar.");
+      setUploadError(error.message || "Failed to upload avatar. Please ensure the 'avatars' storage bucket exists and has the correct policies.");
       console.error(error);
     } finally {
       setUploading(false);
+      // Reset file input to allow re-uploading the same file
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
   
@@ -140,14 +135,38 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
         <div className="md:col-span-2">
             <div className="flex items-center justify-between space-x-4 mb-8 p-4 bg-white dark:bg-gray-800/50 rounded-lg shadow-sm">
                 <div className="flex items-center space-x-4 min-w-0">
-                    {profile.avatar_url ? (
-                      <img src={profile.avatar_url} alt={profile.username} className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
-                    ) : (
-                      <UserIcon className="w-16 h-16 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                    )}
+                    <div className="relative group flex-shrink-0">
+                        {profile.avatar_url ? (
+                            <img src={profile.avatar_url} alt={profile.username} className="w-16 h-16 rounded-full object-cover" />
+                        ) : (
+                            <UserIcon className="w-16 h-16 text-gray-500 dark:text-gray-400" />
+                        )}
+                        {uploading ? (
+                            <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Update profile picture"
+                            >
+                                <PencilIcon className="w-7 h-7 text-white" />
+                            </button>
+                        )}
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleAvatarUpload}
+                            accept="image/png, image/jpeg"
+                            className="hidden"
+                            disabled={uploading}
+                        />
+                    </div>
                     <div className="min-w-0">
                       <h1 className="text-3xl font-bold truncate">{profile.username}</h1>
                       <p className="text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                      {uploadError && <p className="text-red-400 text-xs mt-1">{uploadError}</p>}
                     </div>
                 </div>
                 <button
@@ -157,30 +176,6 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
                 >
                   {theme === 'dark' ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
                 </button>
-            </div>
-
-            <div className="p-4 bg-white dark:bg-gray-800/50 rounded-lg mb-8 shadow-sm">
-              <form onSubmit={handleAvatarUpload}>
-                  <label htmlFor="avatar-upload" className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Update Profile Picture</label>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <input
-                          type="file"
-                          id="avatar-upload"
-                          accept="image/png, image/jpeg"
-                          onChange={handleFileChange}
-                          disabled={uploading}
-                          className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-600/20 file:text-red-300 hover:file:bg-red-600/30 cursor-pointer"
-                      />
-                      <button
-                          type="submit"
-                          disabled={!avatarFile || uploading}
-                          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
-                      >
-                          {uploading ? 'Uploading...' : 'Upload'}
-                      </button>
-                  </div>
-                  {uploadError && <p className="text-red-400 text-sm mt-2">{uploadError}</p>}
-              </form>
             </div>
             
             {loadingMovies ? (

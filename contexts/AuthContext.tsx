@@ -12,8 +12,8 @@ interface AuthContextType {
   userMovieLists: UserMovieList[];
   onlineUsers: Set<string>;
   hasUnreadDms: boolean;
-  notification: { message: string; type: 'success' | 'info' } | null;
-  setNotification: (notification: { message: string; type: 'success' | 'info' } | null) => void;
+  notification: { message: string; type: 'success' | 'info' | 'dm'; senderProfile?: Profile } | null;
+  setNotification: (notification: { message: string; type: 'success' | 'info' | 'dm'; senderProfile?: Profile } | null) => void;
   refreshProfile: () => Promise<void>;
   refreshUserMovieLists: () => Promise<void>;
   refreshUnreadDms: () => Promise<void>;
@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Notification States ---
   const [hasUnreadDms, setHasUnreadDms] = useState(false);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'dm'; senderProfile?: Profile } | null>(null);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
@@ -197,11 +197,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setHasUnreadDms(true);
           const newMessage = payload.new as DirectMessage;
           const senderProfile = await getProfile(newMessage.sender_id);
+          if (!senderProfile) return; // Don't show notification if sender profile can't be found
+          
           const senderName = senderProfile?.username || 'Someone';
-
           const notificationMessage = `${senderName}: ${newMessage.content.substring(0, 50)}${newMessage.content.length > 50 ? '...' : ''}`;
           
-          setNotification({ message: notificationMessage, type: 'info' });
+          setNotification({ 
+              message: notificationMessage,
+              type: 'dm',
+              senderProfile: senderProfile
+          });
 
           // Browser notification if tab is not active
           if (document.hidden && Notification.permission === 'granted') {

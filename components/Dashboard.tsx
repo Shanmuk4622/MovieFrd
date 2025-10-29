@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+// import { GoogleGenAI, Type } from "@google/genai";
 import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
 import { Movie, UserActivity, UserMovieList } from '../types';
@@ -8,7 +8,7 @@ import { getFriendActivity } from '../supabaseApi';
 import { MovieListSkeleton, ActivitySkeleton } from './skeletons';
 import { useAuth } from '../contexts/AuthContext';
 import { formatTimeAgo } from '../utils';
-import { SparklesIcon } from './icons';
+// import { SparklesIcon } from './icons';
 
 interface DashboardProps {
   userMovieLists: UserMovieList[];
@@ -17,6 +17,7 @@ interface DashboardProps {
   onSelectProfile: (userId: string) => void;
 }
 
+/*
 const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onListUpdate' | 'onSelectMovie'>> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -167,7 +168,7 @@ const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onLis
     </section>
   );
 };
-
+*/
 
 const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
   const { user } = useAuth();
@@ -260,11 +261,13 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 lg:px-0">
       <div className="lg:col-span-2">
+        {/*
         <GeminiRecommender
             userMovieLists={userMovieLists}
             onListUpdate={onListUpdate}
             onSelectMovie={onSelectMovie}
         />
+        */}
         {loadingMovies ? (
             <>
                 <MovieListSkeleton />

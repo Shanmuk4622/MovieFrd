@@ -18,9 +18,10 @@ export type Conversation = (ChatRoom & { type: 'room' }) | (Profile & { type: 'd
 
 interface ChatProps {
   onSelectProfile: (userId: string) => void;
+  initialUser?: Profile | null;
 }
 
-const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
+const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const { user, profile, onlineUsers, refreshUnreadDms } = useAuth();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
@@ -98,6 +99,16 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
     fetchInitialData();
   }, [fetchInitialData]);
   
+  // Effect to handle selecting a user from a notification or external link
+  useEffect(() => {
+    if (initialUser && friends.length > 0) {
+        const friendToSelect = friends.find(f => f.id === initialUser.id);
+        if (friendToSelect && activeConversation?.id !== initialUser.id) {
+            setActiveConversation({ ...friendToSelect, type: 'dm' });
+        }
+    }
+  }, [initialUser, friends, activeConversation]);
+
   const handleSelectConversation = (conversation: Conversation) => {
     setActiveConversation(conversation);
     setIsSidebarOpen(false); // Close sidebar on mobile after selection

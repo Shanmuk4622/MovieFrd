@@ -9,7 +9,7 @@ import MovieDetail from './components/MovieDetail';
 import Notification from './components/Notification';
 import UserProfileModal from './components/UserProfileModal';
 import { useAuth } from './contexts/AuthContext';
-import { Movie } from './types';
+import { Movie, Profile as ProfileType } from './types';
 import { searchMovies } from './api';
 
 export type View = 'dashboard' | 'profile' | 'search' | 'chat';
@@ -26,6 +26,9 @@ const App: React.FC = () => {
   // State for movie detail modal
   const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // State to pre-select a chat when navigating from a notification
+  const [initialChatUser, setInitialChatUser] = useState<ProfileType | null>(null);
 
   const handleListUpdate = (message: string) => {
     refreshUserMovieLists();
@@ -63,11 +66,20 @@ const App: React.FC = () => {
         setSearchQuery('');
         setSearchResults([]);
     }
+    if (newView !== 'chat') {
+        setInitialChatUser(null);
+    }
     setSelectedProfileId(null); // Close profile modal when view changes
     setSelectedMovieId(null); // Close modal when view changes
     setView(newView);
   };
   
+  const handleNotificationClick = (senderProfile: ProfileType) => {
+    setInitialChatUser(senderProfile);
+    handleSetView('chat');
+    setNotification(null); // Close notification on click
+  };
+
   if (!session) {
     return <Auth />;
   }
@@ -98,7 +110,7 @@ const App: React.FC = () => {
                 onSelectMovie={handleSelectMovie}
             />;
         case 'chat':
-            return <Chat onSelectProfile={handleSelectProfile} />;
+            return <Chat onSelectProfile={handleSelectProfile} initialUser={initialChatUser} />;
         default:
             return null;
     }
@@ -135,9 +147,11 @@ const App: React.FC = () => {
       )}
       {notification && (
         <Notification 
-            message={notification.message}
-            type={notification.type}
+            notification={notification}
             onClose={() => setNotification(null)}
+            onClick={notification.type === 'dm' && notification.senderProfile 
+                ? () => handleNotificationClick(notification.senderProfile!) 
+                : undefined}
         />
       )}
     </div>
