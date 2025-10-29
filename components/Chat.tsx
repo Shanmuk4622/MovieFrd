@@ -3,8 +3,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import { 
     getChatRooms, createChatRoom, getRoomMessages, sendMessage, subscribeToRoomMessages,
-    getFriendships, getDirectMessages, sendDirectMessage, subscribeToDirectMessages, getProfile,
-    markMessagesAsSeen
+    getFriendships, getDirectMessages, sendDirectMessage, subscribeToDirectMessages, getProfile
 } from '../supabaseApi';
 import { ChatRoom, ChatMessage, Friendship, Profile, DirectMessage } from '../types';
 import RoomSidebar from './RoomSidebar';
@@ -12,6 +11,7 @@ import MessageArea from './MessageArea';
 import MessageInput from './MessageInput';
 import CreateRoomModal from './CreateRoomModal';
 import { supabase } from '../supabaseClient';
+import { ChatBubbleIcon } from './icons';
 
 export type Conversation = (ChatRoom & { type: 'room' }) | (Profile & { type: 'dm' });
 
@@ -28,6 +28,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [profileCache, setProfileCache] = useState<Map<string, Profile>>(new Map());
+  const [initializationError, setInitializationError] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAnonymity, setModalAnonymity] = useState(false);
@@ -57,12 +58,15 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
   const fetchInitialData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setInitializationError(null);
 
     try {
-        const [chatRooms, friendships] = await Promise.all([
-            getChatRooms(),
-            getFriendships(user.id)
-        ]);
+        const chatRooms = await getChatRooms();
+        const friendships = await getFriendships(user.id);
+        
+        if (chatRooms.length === 0 && friendships.length === 0) {
+            setInitializationError("No chat rooms or friends found. Please check database permissions (RLS) or create a room to get started.");
+        }
         
         setRooms(chatRooms);
 
@@ -72,15 +76,16 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
         setFriends(acceptedFriends);
 
         if (chatRooms.length > 0) {
-        setActiveConversation(current => {
-            if (!current) { // Only set if there's no active conversation
-            return { ...chatRooms[0], type: 'room' };
-            }
-            return current;
-        });
+            setActiveConversation(current => {
+                if (!current) {
+                    return { ...chatRooms[0], type: 'room' };
+                }
+                return current;
+            });
         }
     } catch (error) {
         console.error("Failed to fetch initial chat data", error);
+        setInitializationError("An error occurred while loading chat data.");
     } finally {
         setLoading(false);
     }
@@ -94,15 +99,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
     setActiveConversation(conversation);
     setIsSidebarOpen(false); // Close sidebar on mobile after selection
   }
-
-  const handleMarkMessagesAsSeen = useCallback(async (messageIds: number[]) => {
-      if (!user || !activeConversation || messageIds.length === 0) return;
-      
-      const type = activeConversation.type === 'room' ? 'room' : 'dm';
-      await markMessagesAsSeen(messageIds, user.id, type);
-
-  }, [user, activeConversation]);
-
 
   useEffect(() => {
     if (!activeConversation || !user || !profile) return;
@@ -164,22 +160,27 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
       setMessagesLoading(true);
       setMessages([]);
       
-      if (activeConversation.type === 'room') {
-        const initialMessages = await getRoomMessages(activeConversation.id);
-        setMessages(initialMessages);
-        subscription = subscribeToRoomMessages(activeConversation.id, handleMessageEvent);
-      } else { // DM
-        const initialMessages = await getDirectMessages(user.id, activeConversation.id);
-        setMessages(initialMessages);
-        subscription = subscribeToDirectMessages(user.id, activeConversation.id, handleMessageEvent);
-      }
+      try {
+          if (activeConversation.type === 'room') {
+            const initialMessages = await getRoomMessages(activeConversation.id);
+            setMessages(initialMessages);
+            subscription = subscribeToRoomMessages(activeConversation.id, handleMessageEvent);
+          } else { // DM
+            const initialMessages = await getDirectMessages(user.id, activeConversation.id);
+            setMessages(initialMessages);
+            subscription = subscribeToDirectMessages(user.id, activeConversation.id, handleMessageEvent);
+          }
 
-      subscription
-        .on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload))
-        .on('broadcast', { event: 'stopped-typing' }, ({ payload }) => handleStopTypingEvent(payload));
-      
-      channelRef.current = subscription;
-      setMessagesLoading(false);
+          subscription
+            .on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload))
+            .on('broadcast', { event: 'stopped-typing' }, ({ payload }) => handleStopTypingEvent(payload));
+          
+          channelRef.current = subscription;
+      } catch (error) {
+          console.error("Failed to load conversation:", error);
+      } finally {
+          setMessagesLoading(false);
+      }
     };
 
     fetchMessagesAndSubscribe();
@@ -228,6 +229,61 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
     setActiveConversation({ ...newRoom, type: 'room' });
   };
 
+  const renderMainContent = () => {
+    if (loading) {
+      return (
+        <div className="flex-1 flex flex-col">
+          <MessageArea
+            user={user!}
+            messages={[]}
+            conversation={null}
+            isLoading={true}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen(true)}
+            typingUsers={[]}
+            onSelectProfile={onSelectProfile}
+          />
+          <MessageInput onSendMessage={() => {}} onTyping={() => {}} />
+        </div>
+      );
+    }
+
+    if (initializationError) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center text-red-400 p-4 text-center">
+          <h3 className="text-lg font-semibold mb-2">Error Loading Chat</h3>
+          <p>{initializationError}</p>
+        </div>
+      );
+    }
+
+    if (!activeConversation) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 p-4 text-center">
+          <ChatBubbleIcon className="w-16 h-16 text-gray-400 dark:text-gray-600 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Welcome to Chat</h3>
+          <p>Select a conversation from the sidebar to begin.</p>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <MessageArea
+          user={user!}
+          messages={messages}
+          conversation={activeConversation}
+          isLoading={messagesLoading}
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={() => setIsSidebarOpen(true)}
+          typingUsers={typingUsers}
+          onSelectProfile={onSelectProfile}
+        />
+        <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />
+      </>
+    );
+  };
+
   return (
     <>
       <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden relative">
@@ -243,26 +299,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
             isLoading={loading}
         />
         <div className="flex flex-col flex-1 min-w-0">
-          {activeConversation || loading ? (
-            <>
-              <MessageArea 
-                user={user!} 
-                messages={messages} 
-                conversation={activeConversation} 
-                isLoading={messagesLoading || !activeConversation}
-                isSidebarOpen={isSidebarOpen}
-                onToggleSidebar={() => setIsSidebarOpen(true)}
-                typingUsers={typingUsers}
-                onSelectProfile={onSelectProfile}
-                onMarkAsSeen={handleMarkMessagesAsSeen}
-              />
-              <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400 p-4 text-center">
-              <p>Select a room or a friend to start chatting.</p>
-            </div>
-          )}
+          {renderMainContent()}
         </div>
       </div>
       <CreateRoomModal

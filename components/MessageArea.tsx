@@ -13,7 +13,6 @@ interface MessageAreaProps {
   onToggleSidebar: () => void;
   typingUsers: Profile[];
   onSelectProfile: (userId: string) => void;
-  onMarkAsSeen: (messageIds: number[]) => void;
 }
 
 const adjectives = ["Clever", "Silent", "Brave", "Quick", "Wise", "Witty", "Curious", "Daring", "Gentle", "Keen"];
@@ -40,25 +39,6 @@ const formatTimestamp = (dateString: string) => {
     }
     return date.toLocaleDateString();
 };
-
-const SeenStatusIndicator: React.FC<{ message: ChatMessage | DirectMessage; conversation: Conversation; currentUser: User; }> = ({ message, conversation, currentUser }) => {
-    if (message.sender_id !== currentUser.id) return null;
-    
-    let isSeen = false;
-    if (conversation.type === 'dm') {
-        // In a DM, seen if the other person's ID is in the seen_by array
-        isSeen = !!message.seen_by?.includes(conversation.id);
-    } else {
-        // In a room, considered seen if anyone other than the sender has seen it
-        isSeen = !!message.seen_by && message.seen_by.length > message.seen_by.filter(id => id === currentUser.id).length;
-    }
-    
-    if (isSeen) {
-        return <CheckDoubleIcon className="w-5 h-5 text-red-400 dark:text-red-300" />;
-    }
-    return <CheckIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />;
-};
-
 
 const TypingIndicator: React.FC<{ users: Profile[] }> = ({ users }) => {
     if (users.length === 0) return null;
@@ -96,7 +76,7 @@ const getEphemeralMessage = (conversation: Conversation | null) => {
 };
 
 
-const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile, onMarkAsSeen }) => {
+const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -120,33 +100,6 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
         endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading, typingUsers]);
-
-  useEffect(() => {
-    if (!messagesContainerRef.current || !user) return;
-    
-    const observer = new IntersectionObserver((entries) => {
-        const messageIdsToMark: number[] = [];
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const messageId = (entry.target as HTMLElement).dataset.messageId;
-                if (messageId) {
-                    messageIdsToMark.push(parseInt(messageId, 10));
-                    observer.unobserve(entry.target);
-                }
-            }
-        });
-        if (messageIdsToMark.length > 0) {
-            onMarkAsSeen(messageIdsToMark);
-        }
-    }, { root: messagesContainerRef.current, threshold: 0.8 });
-
-    const unreadMessages = messagesContainerRef.current.querySelectorAll('[data-seen="false"]');
-    unreadMessages.forEach(el => observer.observe(el));
-
-    return () => observer.disconnect();
-
-  }, [messages, user, onMarkAsSeen]);
-
   
   const conversationName = conversation ? (conversation.type === 'room' ? conversation.name : conversation.username) : 'Loading...';
   const conversationDescription = conversation ? (conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`) : 'Please wait';
@@ -199,15 +152,10 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                                prevMessage.sender_id !== msg.sender_id ||
                                (new Date(msg.created_at).getTime() - new Date(prevMessage.created_at).getTime()) > 5 * 60 * 1000;
             
-            // For the intersection observer
-            const isSeenByCurrentUser = msg.sender_id === user.id || !!msg.seen_by?.includes(user.id);
-
             return (
                 <div 
                     key={msg.id} 
                     className={`flex items-start gap-3 ${isCurrentUser ? 'flex-row-reverse' : ''} ${showHeader ? 'mt-4' : 'mt-1'}`}
-                    data-message-id={msg.id}
-                    data-seen={isSeenByCurrentUser.toString()}
                 >
                     {/* Avatar Column */}
                     <div className="w-10 h-10 flex-shrink-0">
@@ -242,7 +190,6 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                                     <span className="text-xs text-gray-400 dark:text-gray-500">
                                         {formatTimestamp(msg.created_at)}
                                     </span>
-                                    {isCurrentUser && conversation && <SeenStatusIndicator message={msg} conversation={conversation} currentUser={user} />}
                                 </div>
                             </div>
                         )}

@@ -251,7 +251,7 @@ export const getDirectMessages = async (userId1: string, userId2: string): Promi
     const { data, error } = await supabase
         .from('direct_messages')
         .select('*, profiles:sender_id(*)')
-        .or(`(sender_id.eq.${userId1},receiver_id.eq.${userId2}),(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
+        .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
         .gte('created_at', threeDaysAgo) // Filter for recent messages
         .order('created_at', { ascending: true });
 
@@ -302,16 +302,4 @@ export const subscribeToDirectMessages = (
     .subscribe();
 
   return channel;
-};
-
-export const markMessagesAsSeen = async (messageIds: number[], userId: string, type: 'room' | 'dm') => {
-    const { error } = await supabase.rpc('mark_messages_as_seen', {
-        message_ids_to_update: messageIds,
-        user_id_to_add: userId,
-        message_type: type
-    });
-
-    if (error) {
-        console.error(`Error marking messages as seen for type ${type}:`, error);
-    }
 };

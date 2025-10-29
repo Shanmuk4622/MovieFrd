@@ -1,8 +1,10 @@
 import { Movie, MovieDetail, CastMember } from './types';
 
-// IMPORTANT: Replace this with your actual TMDB API key.
-// You can get one for free by signing up at https://www.themoviedb.org/.
-const TMDB_API_KEY = '1f54bd990f1cdfb230adb312546d765d'; 
+// --- Hardcoded TMDB API Key for Development ---
+// WARNING: This token is provided for development purposes in an environment
+// where setting environment variables is not feasible. For any production deployment,
+// this value MUST be replaced with a secure environment variable.
+const TMDB_API_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIwZDExYjAzM2Y3YjQ4ZTdjNzlkMjBlZDRmYzFiNzI4MSIsIm5iZiI6MTc2MTYzNzc5NC42MzYsInN1YiI6IjY5MDA3NWEyYjNjZDBjNjY1MWEzMTQ5YSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.m2CLiwb_qCkf5cjyfxyIqIemyNpUvK3mwLKE7r2TZ1o';
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const IMAGE_BASE_URL_W200 = 'https://image.tmdb.org/t/p/w200';
@@ -50,10 +52,26 @@ const mapTmdbMovieToMovie = (tmdbMovie: TmdbMovie): Movie => ({
   rating: tmdbMovie.vote_average,
 });
 
-// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
+const checkApiKey = () => {
+  if (!TMDB_API_KEY) {
+    const errorMsg = "TMDB API key is not configured. Please set the TMDB_API_KEY environment variable.";
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+};
+
+const getFetchOptions = () => ({
+    headers: {
+        'Authorization': `Bearer ${TMDB_API_KEY}`,
+        'Content-Type': 'application/json;charset=utf-8'
+    }
+});
+
+
 export const fetchMovies = async (endpoint: string): Promise<Movie[]> => {
+  checkApiKey();
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}?api_key=${TMDB_API_KEY}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, getFetchOptions());
     if (!response.ok) {
       throw new Error(`Failed to fetch movies from TMDB: ${response.statusText}`);
     }
@@ -66,13 +84,13 @@ export const fetchMovies = async (endpoint: string): Promise<Movie[]> => {
   }
 };
 
-// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const fetchMovieDetails = async (movieId: number): Promise<Movie | null> => {
+  checkApiKey();
   if (movieDetailsCache.has(movieId)) {
     return movieDetailsCache.get(movieId)!;
   }
   try {
-    const response = await fetch(`${API_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}`);
+    const response = await fetch(`${API_BASE_URL}/movie/${movieId}`, getFetchOptions());
     if (!response.ok) {
       throw new Error(`Failed to fetch movie details for ID ${movieId}`);
     }
@@ -86,10 +104,10 @@ export const fetchMovieDetails = async (movieId: number): Promise<Movie | null> 
   }
 };
 
-// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const searchMovies = async (query: string): Promise<Movie[]> => {
+  checkApiKey();
   try {
-    const response = await fetch(`${API_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`);
+    const response = await fetch(`${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`, getFetchOptions());
     if (!response.ok) {
       throw new Error(`Failed to search movies on TMDB: ${response.statusText}`);
     }
@@ -103,16 +121,17 @@ export const searchMovies = async (query: string): Promise<Movie[]> => {
 };
 
 
-// FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieDetail | null> => {
+    checkApiKey();
     if (movieDetailsExtendedCache.has(movieId)) {
         return movieDetailsExtendedCache.get(movieId)!;
     }
     try {
+        const fetchOptions = getFetchOptions();
         const [detailsRes, creditsRes, videosRes] = await Promise.all([
-            fetch(`${API_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}`),
-            fetch(`${API_BASE_URL}/movie/${movieId}/credits?api_key=${TMDB_API_KEY}`),
-            fetch(`${API_BASE_URL}/movie/${movieId}/videos?api_key=${TMDB_API_KEY}`)
+            fetch(`${API_BASE_URL}/movie/${movieId}`, fetchOptions),
+            fetch(`${API_BASE_URL}/movie/${movieId}/credits`, fetchOptions),
+            fetch(`${API_BASE_URL}/movie/${movieId}/videos`, fetchOptions)
         ]);
 
         if (!detailsRes.ok || !creditsRes.ok || !videosRes.ok) {
