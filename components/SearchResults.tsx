@@ -1,15 +1,15 @@
 
 import React, { useState, useMemo } from 'react';
-import { Movie } from '../types';
+// FIX: UserMovieList is now imported from types.ts
+import { Movie, UserMovieList } from '../types';
 import MovieCard from './MovieCard';
-import { UserMovieList } from '../supabaseApi';
 import { SearchIcon } from './icons';
 
 interface SearchResultsProps {
   query: string;
   movies: Movie[];
   userMovieLists: UserMovieList[];
-  onListUpdate: () => void;
+  onListUpdate: (message: string) => void;
   isLoading: boolean;
   onSelectMovie: (movieId: number) => void;
 }

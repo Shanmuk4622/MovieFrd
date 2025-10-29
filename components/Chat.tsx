@@ -15,7 +15,11 @@ import { supabase } from '../supabaseClient';
 
 export type Conversation = (ChatRoom & { type: 'room' }) | (Profile & { type: 'dm' });
 
-const Chat: React.FC = () => {
+interface ChatProps {
+  onSelectProfile: (userId: string) => void;
+}
+
+const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
   const { user, profile } = useAuth();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
@@ -54,28 +58,32 @@ const Chat: React.FC = () => {
     if (!user) return;
     setLoading(true);
 
-    const [chatRooms, friendships] = await Promise.all([
-        getChatRooms(),
-        getFriendships(user.id)
-    ]);
-    
-    setRooms(chatRooms);
+    try {
+        const [chatRooms, friendships] = await Promise.all([
+            getChatRooms(),
+            getFriendships(user.id)
+        ]);
+        
+        setRooms(chatRooms);
 
-    const acceptedFriends = friendships
-      .filter(f => f.status === 'accepted')
-      .map(f => f.requester_id === user.id ? f.addressee : f.requester);
-    setFriends(acceptedFriends);
+        const acceptedFriends = friendships
+        .filter(f => f.status === 'accepted')
+        .map(f => f.requester_id === user.id ? f.addressee : f.requester);
+        setFriends(acceptedFriends);
 
-    if (chatRooms.length > 0) {
-      setActiveConversation(current => {
-        if (!current) {
-          return { ...chatRooms[0], type: 'room' };
+        if (chatRooms.length > 0) {
+        setActiveConversation(current => {
+            if (!current) { // Only set if there's no active conversation
+            return { ...chatRooms[0], type: 'room' };
+            }
+            return current;
+        });
         }
-        return current;
-      });
+    } catch (error) {
+        console.error("Failed to fetch initial chat data", error);
+    } finally {
+        setLoading(false);
     }
-    
-    setLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -245,6 +253,7 @@ const Chat: React.FC = () => {
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={() => setIsSidebarOpen(true)}
                 typingUsers={typingUsers}
+                onSelectProfile={onSelectProfile}
                 onMarkAsSeen={handleMarkMessagesAsSeen}
               />
               <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />

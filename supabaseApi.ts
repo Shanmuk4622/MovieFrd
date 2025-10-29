@@ -1,13 +1,7 @@
 import { supabase } from './supabaseClient';
 import { User, RealtimeChannel } from '@supabase/supabase-js';
-import { ChatRoom, ChatMessage, Profile, Friendship, FriendshipStatus, DirectMessage } from './types';
-
-export interface UserMovieList {
-  id: number;
-  user_id: string;
-  tmdb_movie_id: number;
-  list_type: 'watched' | 'watchlist';
-}
+// FIX: Moved UserMovieList to types.ts and imported it from there to centralize type definitions.
+import { ChatRoom, ChatMessage, Profile, Friendship, FriendshipStatus, DirectMessage, UserMovieList } from './types';
 
 export const getProfile = async (userId: string): Promise<Profile | null> => {
   const { data, error } = await supabase

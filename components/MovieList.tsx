@@ -1,13 +1,13 @@
 import React from 'react';
-import { Movie } from '../types';
+// FIX: UserMovieList is now imported from types.ts
+import { Movie, UserMovieList } from '../types';
 import MovieCard from './MovieCard';
-import { UserMovieList } from '../supabaseApi';
 
 interface MovieListProps {
   title: string;
   movies: Movie[];
   userMovieLists: UserMovieList[];
-  onListUpdate: () => void;
+  onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
 }
 

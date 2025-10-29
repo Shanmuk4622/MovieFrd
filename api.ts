@@ -2,7 +2,7 @@ import { Movie, MovieDetail, CastMember } from './types';
 
 // IMPORTANT: Replace this with your actual TMDB API key.
 // You can get one for free by signing up at https://www.themoviedb.org/.
-const TMDB_API_KEY = '0d11b033f7b48e7c79d20ed4fc1b7281'; 
+const TMDB_API_KEY = '1f54bd990f1cdfb230adb312546d765d'; 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const IMAGE_BASE_URL_W200 = 'https://image.tmdb.org/t/p/w200';

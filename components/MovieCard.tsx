@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { Movie } from '../types';
+// FIX: UserMovieList is now imported from types.ts
+import { Movie, UserMovieList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { UserMovieList, addMovieToList, removeMovieFromList } from '../supabaseApi';
+import { addMovieToList, removeMovieFromList } from '../supabaseApi';
 import { StarIcon, PlusIcon, CheckIcon, XIcon } from './icons';
 
 interface MovieCardProps {
   movie: Movie;
   userMovieLists: UserMovieList[];
-  onListUpdate: () => void;
+  onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
 }
 
@@ -29,12 +30,14 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
     try {
       if (action === 'remove') {
         await removeMovieFromList(user.id, movie.id);
+        onListUpdate(`'${movie.title}' removed from your lists`);
       } else if (action === 'add_watchlist') {
         await addMovieToList(user.id, movie.id, 'watchlist');
+        onListUpdate(`'${movie.title}' added to your Watchlist`);
       } else if (action === 'add_watched') {
         await addMovieToList(user.id, movie.id, 'watched');
+        onListUpdate(`'${movie.title}' marked as Watched`);
       }
-      await onListUpdate(); // Refresh lists in parent component
     } catch (error) {
       console.error("Failed to update list", error);
     } finally {
@@ -64,7 +67,12 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
         className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
         onClick={(e) => e.stopPropagation()} // Prevent card click when clicking overlay buttons
       >
-        <h3 className="font-bold text-base text-center line-clamp-3 mb-3">{movie.title}</h3>
+        <h3 
+          className="font-bold text-base text-center line-clamp-3 mb-3 cursor-pointer hover:underline"
+          onClick={() => onSelectMovie(movie.id)}
+        >
+          {movie.title}
+        </h3>
         <div className="space-y-2 w-full">
             {isInWatched ? (
                 <button

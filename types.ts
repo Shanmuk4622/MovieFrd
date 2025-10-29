@@ -1,12 +1,17 @@
 
-
-
-
 export interface Movie {
   id: number;
   title: string;
   posterUrl: string;
   rating: number;
+}
+
+// FIX: Moved UserMovieList from supabaseApi.ts to centralize types and fix import error.
+export interface UserMovieList {
+  id: number;
+  user_id: string;
+  tmdb_movie_id: number;
+  list_type: 'watched' | 'watchlist';
 }
 
 export interface UserActivity {

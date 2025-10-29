@@ -12,6 +12,7 @@ interface MessageAreaProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
   typingUsers: Profile[];
+  onSelectProfile: (userId: string) => void;
   onMarkAsSeen: (messageIds: number[]) => void;
 }
 
@@ -84,7 +85,7 @@ const TypingIndicator: React.FC<{ users: Profile[] }> = ({ users }) => {
 };
 
 
-const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onMarkAsSeen }) => {
+const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile, onMarkAsSeen }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -191,19 +192,30 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                     data-seen={isSeenByCurrentUser.toString()}
                 >
                     {/* Avatar Column */}
-                    <div className="w-10 h-10 flex-shrink-0">
-                        {showHeader && (
-                            <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                    <button 
+                        className="w-10 h-10 flex-shrink-0 disabled:cursor-default" 
+                        onClick={() => !isCurrentUser && onSelectProfile(msg.sender_id)}
+                        disabled={isCurrentUser}
+                        aria-label={`View profile of ${getDisplayName(msg)}`}
+                    >
+                        {showHeader ? (
+                            <div className={`w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center ${!isCurrentUser && 'hover:ring-2 hover:ring-red-500 transition-all'}`}>
                                <UserIcon className="w-6 h-6 text-gray-400 dark:text-gray-400"/>
                             </div>
-                        )}
-                    </div>
+                        ) : <div className="w-10 h-10"></div>}
+                    </button>
 
                     {/* Message Content Column */}
                     <div className={`flex flex-col w-full ${isCurrentUser ? 'items-end' : 'items-start'}`}>
                         {showHeader && (
                             <div className={`flex items-baseline gap-2 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
-                                <span className={`font-bold ${isCurrentUser ? 'text-gray-900 dark:text-white' : 'text-red-400'}`}>{getDisplayName(msg)}</span>
+                                <button 
+                                    className={`font-bold disabled:cursor-default ${isCurrentUser ? 'text-gray-900 dark:text-white' : 'text-red-400 hover:underline'}`}
+                                    onClick={() => !isCurrentUser && onSelectProfile(msg.sender_id)}
+                                    disabled={isCurrentUser}
+                                >
+                                    {getDisplayName(msg)}
+                                </button>
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-xs text-gray-400 dark:text-gray-500">
                                         {formatTimestamp(msg.created_at)}

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
-import { Movie, UserActivity } from '../types';
+// FIX: UserMovieList is now imported from types.ts
+import { Movie, UserActivity, UserMovieList } from '../types';
 import { fetchMovies } from '../api';
-import { UserMovieList } from '../supabaseApi';
 
 // Friend activity will remain mocked for now, as it requires user auth and a database.
 const mockActivities: UserActivity[] = [
@@ -35,7 +35,7 @@ const mockActivities: UserActivity[] = [
 
 interface DashboardProps {
   userMovieLists: UserMovieList[];
-  onListUpdate: () => void;
+  onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
 }
 

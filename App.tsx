@@ -6,9 +6,12 @@ import Profile from './components/Profile';
 import SearchResults from './components/SearchResults';
 import Chat from './components/Chat';
 import MovieDetail from './components/MovieDetail';
+import Notification from './components/Notification';
+import UserProfileModal from './components/UserProfileModal';
 import { useAuth } from './contexts/AuthContext';
-import { UserMovieList, getUserMovieLists } from './supabaseApi';
-import { Movie } from './types';
+// FIX: UserMovieList is now imported from types.ts
+import { getUserMovieLists } from './supabaseApi';
+import { Movie, UserMovieList } from './types';
 import { searchMovies } from './api';
 
 export type View = 'dashboard' | 'profile' | 'search' | 'chat';
@@ -26,6 +29,10 @@ const App: React.FC = () => {
   
   // State for movie detail modal
   const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // State for notifications
+  const [notification, setNotification] = useState<{ message: string; type: 'success' } | null>(null);
 
   useEffect(() => {
     if (session && user) {
@@ -39,10 +46,11 @@ const App: React.FC = () => {
     }
   }, [session, user]);
   
-  const handleListUpdate = () => {
+  const handleListUpdate = (message: string) => {
     if (user) {
         getUserMovieLists(user.id).then(lists => setUserMovieLists(lists || []));
     }
+    setNotification({ message, type: 'success' });
   };
   
   const handleSearch = async (query: string) => {
@@ -67,11 +75,16 @@ const App: React.FC = () => {
     setSelectedMovieId(movieId);
   };
 
+  const handleSelectProfile = (userId: string) => {
+    setSelectedProfileId(userId);
+  };
+
   const handleSetView = (newView: View) => {
     if (newView !== 'search') {
         setSearchQuery('');
         setSearchResults([]);
     }
+    setSelectedProfileId(null); // Close profile modal when view changes
     setSelectedMovieId(null); // Close modal when view changes
     setView(newView);
   };
@@ -112,7 +125,7 @@ const App: React.FC = () => {
                 onSelectMovie={handleSelectMovie}
             />;
         case 'chat':
-            return <Chat />;
+            return <Chat onSelectProfile={handleSelectProfile} />;
         default:
             return null;
     }
@@ -128,7 +141,30 @@ const App: React.FC = () => {
       <main className={mainContainerClasses}>
         {renderContent()}
       </main>
-      {selectedMovieId && <MovieDetail movieId={selectedMovieId} onClose={() => setSelectedMovieId(null)} />}
+      {selectedMovieId && (
+        <MovieDetail 
+            movieId={selectedMovieId} 
+            onClose={() => setSelectedMovieId(null)}
+            userMovieLists={userMovieLists}
+            onListUpdate={handleListUpdate}
+        />
+      )}
+      {selectedProfileId && (
+        <UserProfileModal 
+            userId={selectedProfileId}
+            onClose={() => setSelectedProfileId(null)}
+            currentUserMovieLists={userMovieLists}
+            onListUpdate={handleListUpdate}
+            onSelectMovie={handleSelectMovie}
+        />
+      )}
+      {notification && (
+        <Notification 
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { UserMovieList, getFriendships, uploadAvatar } from '../supabaseApi';
-import { Movie, Friendship } from '../types';
+// FIX: UserMovieList is now imported from types.ts
+import { getFriendships, uploadAvatar } from '../supabaseApi';
+import { Movie, Friendship, UserMovieList } from '../types';
 import { fetchMovieDetails } from '../api';
 import MovieList from './MovieList';
 import UserSearch from './UserSearch';
@@ -10,7 +11,7 @@ import { UserIcon } from './icons';
 
 interface ProfileProps {
   userMovieLists: UserMovieList[];
-  onListUpdate: () => void;
+  onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
 }
 
