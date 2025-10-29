@@ -120,7 +120,7 @@ const App: React.FC = () => {
   }
 
   const mainContainerClasses = view === 'chat' 
-    ? 'flex-grow container mx-auto w-full flex-1' 
+    ? 'flex-grow w-full flex-1' 
     : 'container mx-auto py-4 sm:py-8';
   
   const appContainerClasses = view === 'chat'

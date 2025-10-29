@@ -379,7 +379,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   return (
     <>
-      <div className="flex h-full bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden relative">
+      <div className="flex h-full bg-white dark:bg-gray-800 overflow-hidden relative">
         <RoomSidebar 
             rooms={rooms} 
             friends={friends}

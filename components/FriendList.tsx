@@ -62,8 +62,8 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
       onClick={() => setActiveTab(tab)}
       className={`flex-1 px-2 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 ease-in-out relative flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:dark:ring-offset-gray-800 ${
         activeTab === tab 
-          ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' 
-          : 'text-gray-600 dark:text-gray-300 hover:bg-white/50 dark:hover:bg-gray-600/50'
+          ? 'bg-white dark:bg-gray-700 shadow-md text-red-600 dark:text-red-400' 
+          : 'text-gray-600 dark:text-gray-300 hover:bg-white/50 dark:hover:bg-gray-700'
       }`}
     >
       <span>{label}</span>

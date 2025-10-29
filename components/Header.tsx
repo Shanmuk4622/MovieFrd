@@ -88,8 +88,13 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch, view }) => {
     </div>
   );
 
+  const headerClasses = view === 'chat'
+    ? 'bg-white dark:bg-gray-800 sticky top-0 z-50 p-4 flex-shrink-0'
+    : 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 p-4 shadow-lg shadow-gray-200/60 dark:shadow-black/20 flex-shrink-0';
+
+
   return (
-    <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 p-4 shadow-lg shadow-gray-200/60 dark:shadow-black/20 flex-shrink-0">
+    <header className={headerClasses}>
       <div className="container mx-auto">
         <div className="flex items-center justify-between">
             <div 
