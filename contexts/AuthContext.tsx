@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Session, User, AuthError } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { Session, User, AuthError, RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import { getProfile, getUserMovieLists } from '../supabaseApi';
 import { Profile, UserMovieList } from '../types';
@@ -10,6 +10,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   userMovieLists: UserMovieList[];
+  onlineUsers: Set<string>;
   refreshProfile: () => Promise<void>;
   refreshUserMovieLists: () => Promise<void>;
   signUp: (args: any) => Promise<{ error: AuthError | null }>;
@@ -27,6 +28,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userMovieLists, setUserMovieLists] = useState<UserMovieList[]>([]);
   const [loading, setLoading] = useState(true);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const presenceChannelRef = useRef<RealtimeChannel | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
     if (savedTheme === 'light' || savedTheme === 'dark') {
@@ -155,12 +158,67 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [fetchUserDependentData]);
 
+  // Effect for managing global presence
+  useEffect(() => {
+    if (user && !presenceChannelRef.current) {
+        const channel = supabase.channel('global-presence', {
+            config: {
+                presence: {
+                    key: user.id,
+                },
+            },
+        });
+
+        channel.on('presence', { event: 'sync' }, () => {
+            const presenceState = channel.presenceState();
+            const userIds = Object.keys(presenceState).map(key => presenceState[key][0].user_id);
+            setOnlineUsers(new Set(userIds));
+        });
+
+        channel.on('presence', { event: 'join' }, ({ newPresences }) => {
+            setOnlineUsers(prev => {
+                const newSet = new Set(prev);
+                newPresences.forEach(p => newSet.add(p.user_id));
+                return newSet;
+            });
+        });
+
+        channel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
+            setOnlineUsers(prev => {
+                const newSet = new Set(prev);
+                leftPresences.forEach(p => newSet.delete(p.user_id));
+                return newSet;
+            });
+        });
+        
+        channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await channel.track({ user_id: user.id, online_at: new Date().toISOString() });
+            }
+        });
+        
+        presenceChannelRef.current = channel;
+    } else if (!user && presenceChannelRef.current) {
+        supabase.removeChannel(presenceChannelRef.current);
+        presenceChannelRef.current = null;
+        setOnlineUsers(new Set());
+    }
+
+    return () => {
+        if (presenceChannelRef.current) {
+            supabase.removeChannel(presenceChannelRef.current);
+            presenceChannelRef.current = null;
+        }
+    };
+  }, [user]);
+
 
   const value = {
     session,
     user,
     profile,
     userMovieLists,
+    onlineUsers,
     refreshProfile,
     refreshUserMovieLists,
     signUp: (args: any) => supabase.auth.signUp(args),

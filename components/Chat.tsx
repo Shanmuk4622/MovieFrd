@@ -21,7 +21,7 @@ interface ChatProps {
 }
 
 const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
-  const { user, profile } = useAuth();
+  const { user, profile, onlineUsers } = useAuth();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -264,6 +264,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
             onToggleSidebar={() => setIsSidebarOpen(true)}
             typingUsers={[]}
             onSelectProfile={onSelectProfile}
+            onlineUsers={onlineUsers}
           />
           <MessageInput onSendMessage={() => {}} onTyping={() => {}} />
         </div>
@@ -300,6 +301,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
           onToggleSidebar={() => setIsSidebarOpen(true)}
           typingUsers={typingUsers}
           onSelectProfile={onSelectProfile}
+          onlineUsers={onlineUsers}
         />
         <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />
       </>
@@ -315,6 +317,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
             activeConversation={activeConversation} 
             setActiveConversation={handleSelectConversation}
             onOpenCreateRoom={handleOpenCreateRoom}
+            onlineUsers={onlineUsers}
             unreadCounts={{}} // unreadCounts prop removed for now
             isOpen={isSidebarOpen}
             setIsOpen={setIsSidebarOpen}

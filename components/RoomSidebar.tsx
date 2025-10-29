@@ -9,6 +9,7 @@ interface RoomSidebarProps {
   activeConversation: Conversation | null;
   setActiveConversation: (conversation: Conversation) => void;
   onOpenCreateRoom: (isAnonymous: boolean) => void;
+  onlineUsers: Set<string>;
   unreadCounts: Record<string, number>;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
@@ -21,7 +22,7 @@ const SkeletonItem: React.FC = () => (
     </div>
 );
 
-const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConversation, setActiveConversation, onOpenCreateRoom, unreadCounts, isOpen, setIsOpen, isLoading }) => {
+const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConversation, setActiveConversation, onOpenCreateRoom, onlineUsers, unreadCounts, isOpen, setIsOpen, isLoading }) => {
   const publicChannels = rooms.filter(r => !r.is_anonymous);
   const anonymousRooms = rooms.filter(r => r.is_anonymous);
 
@@ -48,6 +49,7 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
   
   const FriendLink: React.FC<{ friend: Profile }> = ({ friend }) => {
     const unreadCount = unreadCounts[`dm-${friend.id}`] || 0;
+    const isOnline = onlineUsers.has(friend.id);
     return (
       <button
         onClick={() => setActiveConversation({ ...friend, type: 'dm' })}
@@ -57,7 +59,12 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
             : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
         }`}
       >
-        <UserIcon className="w-4 h-4 flex-shrink-0" />
+        <div className="relative flex-shrink-0">
+            <UserIcon className="w-4 h-4" />
+            {isOnline && (
+                <div className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-green-500 rounded-full ring-1 ring-white dark:ring-gray-800"></div>
+            )}
+        </div>
         <span className="flex-1 truncate">{friend.username}</span>
         {unreadCount > 0 && (
           <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">

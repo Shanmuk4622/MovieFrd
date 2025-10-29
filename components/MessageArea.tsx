@@ -13,6 +13,7 @@ interface MessageAreaProps {
   onToggleSidebar: () => void;
   typingUsers: Profile[];
   onSelectProfile: (userId: string) => void;
+  onlineUsers: Set<string>;
 }
 
 const adjectives = ["Clever", "Silent", "Brave", "Quick", "Wise", "Witty", "Curious", "Daring", "Gentle", "Keen"];
@@ -76,7 +77,7 @@ const getEphemeralMessage = (conversation: Conversation | null) => {
 };
 
 
-const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile }) => {
+const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile, onlineUsers }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -128,6 +129,7 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
   const conversationName = conversation ? (conversation.type === 'room' ? conversation.name : conversation.username) : 'Loading...';
   const conversationDescription = conversation ? (conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`) : 'Please wait';
   const ephemeralMessage = getEphemeralMessage(conversation);
+  const isOtherUserOnline = conversation?.type === 'dm' && onlineUsers.has(conversation.id);
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
@@ -142,10 +144,18 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
             <MenuIcon className="w-6 h-6"/>
         </button>
         <div>
-            <h2 className="text-xl font-bold">
-                {conversation && (conversation.type === 'room' ? '# ' : '@ ')}
-                {conversationName}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold">
+                  {conversation && (conversation.type === 'room' ? '# ' : '@ ')}
+                  {conversationName}
+              </h2>
+              {isOtherUserOnline && (
+                <div className="flex items-center gap-1.5 animate-fade-in">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-xs text-green-400 font-semibold">Online</span>
+                </div>
+              )}
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[calc(100vw-120px)]">{conversationDescription || 'Welcome!'}</p>
             {ephemeralMessage && (
                 <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1 flex items-center gap-1.5">
