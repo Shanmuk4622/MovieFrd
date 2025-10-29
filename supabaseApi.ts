@@ -355,6 +355,56 @@ export const markDirectMessagesAsSeen = async (senderId: string, receiverId: str
     }
 };
 
+/*
+-- The RPC function 'get_unread_dm_count' is the most performant way to get this count.
+-- However, to prevent errors for users who have not set it up, this app now uses a client-side query.
+-- You can still add the function below to your Supabase project for better performance.
+-- Go to Database > Functions > Create a new function, and paste the code.
+
+CREATE OR REPLACE FUNCTION get_unread_dm_count()
+RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    unread_count INT;
+BEGIN
+    SELECT COUNT(*)
+    INTO unread_count
+    FROM direct_messages
+    WHERE
+        receiver_id = auth.uid() AND
+        NOT(auth.uid() = ANY(COALESCE(seen_by, '{}')));
+    
+    RETURN unread_count;
+END;
+$$;
+*/
+export const getUnreadDmCount = async (): Promise<number> => {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+        if (sessionError) console.error("Error getting session for DM count:", sessionError);
+        return 0;
+    }
+    const userId = session.user.id;
+
+    // Perform the count using a standard query instead of an RPC call.
+    // This counts messages where the current user is the receiver and
+    // their ID is not in the 'seen_by' array.
+    const { count, error } = await supabase
+        .from('direct_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', userId)
+        .not('seen_by', 'cs', `{${userId}}`);
+
+    if (error) {
+        console.error("Error fetching unread DM count:", error);
+        return 0;
+    }
+
+    return count || 0;
+};
+
+
 export const subscribeToDirectMessages = (
   userId1: string,
   userId2: string,

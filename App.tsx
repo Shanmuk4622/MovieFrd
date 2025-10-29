@@ -15,7 +15,7 @@ import { searchMovies } from './api';
 export type View = 'dashboard' | 'profile' | 'search' | 'chat';
 
 const App: React.FC = () => {
-  const { session, userMovieLists, refreshUserMovieLists } = useAuth();
+  const { session, userMovieLists, refreshUserMovieLists, notification, setNotification } = useAuth();
   const [view, setView] = useState<View>('dashboard');
 
   // State for search functionality
@@ -26,9 +26,6 @@ const App: React.FC = () => {
   // State for movie detail modal
   const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-
-  // State for notifications
-  const [notification, setNotification] = useState<{ message: string; type: 'success' } | null>(null);
 
   const handleListUpdate = (message: string) => {
     refreshUserMovieLists();

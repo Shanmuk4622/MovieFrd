@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
-import { CheckCircleIcon, XIcon } from './icons';
+import { CheckCircleIcon, XIcon, ChatBubbleIcon } from './icons';
 
 interface NotificationProps {
   message: string;
-  type: 'success'; // Can be extended later
+  type: 'success' | 'info';
   onClose: () => void;
 }
 
@@ -11,12 +11,14 @@ const Notification: React.FC<NotificationProps> = ({ message, type, onClose }) =
     useEffect(() => {
         const timer = setTimeout(() => {
             onClose();
-        }, 3000); // Auto-dismiss after 3 seconds
+        }, 4000); // Auto-dismiss after 4 seconds
 
         return () => clearTimeout(timer);
     }, [onClose]);
 
-    const icon = type === 'success' ? <CheckCircleIcon className="w-6 h-6 text-green-400" /> : null;
+    const icon = type === 'success' 
+        ? <CheckCircleIcon className="w-6 h-6 text-green-400" /> 
+        : <ChatBubbleIcon className="w-6 h-6 text-blue-400" />;
     
     return (
         <div 

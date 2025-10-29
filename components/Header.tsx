@@ -46,7 +46,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
-  const { user, profile } = useAuth();
+  const { user, profile, hasUnreadDms } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchSubmit = () => {
@@ -86,10 +86,13 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
           <div className="flex items-center space-x-2 sm:space-x-4">
              <button
               onClick={() => setView('chat')}
-              className="p-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50 hover:text-red-500 transition-colors"
+              className="relative p-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50 hover:text-red-500 transition-colors"
               aria-label="Open chat"
             >
               <ChatBubbleIcon className="w-6 h-6" />
+              {hasUnreadDms && (
+                <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900 animate-pulse"></span>
+              )}
             </button>
             {user ? (
                 <button

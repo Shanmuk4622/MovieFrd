@@ -21,7 +21,7 @@ interface ChatProps {
 }
 
 const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
-  const { user, profile, onlineUsers } = useAuth();
+  const { user, profile, onlineUsers, refreshUnreadDms } = useAuth();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -137,6 +137,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
             // If the incoming message is a DM not sent by us, mark it as seen
             if (activeConversation.type === 'dm' && newMessage.sender_id === activeConversation.id) {
                 await markDirectMessagesAsSeen(activeConversation.id, user.id);
+                refreshUnreadDms();
             }
         }
         if (eventType === 'UPDATE') {
@@ -183,6 +184,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
             setMessages(initialMessages);
             // Mark messages from the other user as seen by me.
             await markDirectMessagesAsSeen(activeConversation.id, user.id);
+            refreshUnreadDms(); // Refresh the global count
             subscription = subscribeToDirectMessages(user.id, activeConversation.id, handleMessageEvent);
           }
 
@@ -208,7 +210,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
       typingTimers.current.forEach(timerId => clearTimeout(timerId));
       typingTimers.current.clear();
     };
-  }, [activeConversation, user, profile, profileCache]);
+  }, [activeConversation, user, profile, profileCache, refreshUnreadDms]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!user || !activeConversation || !content.trim()) return;
