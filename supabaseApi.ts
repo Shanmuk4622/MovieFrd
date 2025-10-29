@@ -201,7 +201,7 @@ export const sendMessage = async (roomId: number, senderId: string, content: str
     .single();
   
   if (error) {
-    console.error('Error sending message:', error);
+    console.error("Error sending message:", error.message);
     throw error;
   }
   return data as ChatMessage;
@@ -338,7 +338,7 @@ export const sendDirectMessage = async (senderId: string, receiverId: string, co
         .single();
     
     if (error) {
-        console.error("Error sending DM:", error);
+        console.error("Error sending DM:", error.message);
         throw error;
     }
     return data as DirectMessage;

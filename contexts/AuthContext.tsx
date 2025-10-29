@@ -12,8 +12,9 @@ interface AuthContextType {
   userMovieLists: UserMovieList[];
   onlineUsers: Set<string>;
   hasUnreadDms: boolean;
-  notification: { message: string; type: 'success' | 'info' | 'dm'; senderProfile?: Profile } | null;
-  setNotification: (notification: { message: string; type: 'success' | 'info' | 'dm'; senderProfile?: Profile } | null) => void;
+  // FIX: Added 'error' to the notification type to allow for error messages.
+  notification: { message: string; type: 'success' | 'info' | 'dm' | 'error'; senderProfile?: Profile } | null;
+  setNotification: (notification: { message: string; type: 'success' | 'info' | 'dm' | 'error'; senderProfile?: Profile } | null) => void;
   refreshProfile: () => Promise<void>;
   refreshUserMovieLists: () => Promise<void>;
   refreshUnreadDms: () => Promise<void>;
@@ -37,7 +38,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Notification States ---
   const [hasUnreadDms, setHasUnreadDms] = useState(false);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'dm'; senderProfile?: Profile } | null>(null);
+  // FIX: Added 'error' to the notification state type.
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'dm' | 'error'; senderProfile?: Profile } | null>(null);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;

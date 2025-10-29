@@ -110,19 +110,30 @@ const App: React.FC = () => {
                 onSelectMovie={handleSelectMovie}
             />;
         case 'chat':
-            return <Chat onSelectProfile={handleSelectProfile} initialUser={initialChatUser} />;
+            return <Chat 
+                onSelectProfile={handleSelectProfile} 
+                initialUser={initialChatUser} 
+            />;
         default:
             return null;
     }
   }
 
   const mainContainerClasses = view === 'chat' 
-    ? 'flex-grow container mx-auto w-full' 
+    ? 'flex-grow container mx-auto w-full flex-1' 
     : 'container mx-auto py-4 sm:py-8';
+  
+  const appContainerClasses = view === 'chat'
+    ? "min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col h-screen"
+    : "min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col";
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
-      <Header setView={handleSetView} onSearch={handleSearch} view={view} />
+    <div className={appContainerClasses}>
+      <Header 
+        setView={handleSetView} 
+        onSearch={handleSearch} 
+        view={view} 
+      />
       <main className={mainContainerClasses}>
         {renderContent()}
       </main>

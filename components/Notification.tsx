@@ -3,7 +3,8 @@ import { CheckCircleIcon, XIcon, ChatBubbleIcon, UserIcon } from './icons';
 import { Profile } from '../types';
 
 interface NotificationProps {
-  notification: { message: string; type: 'success' | 'info' | 'dm'; senderProfile?: Profile };
+  // FIX: Added 'error' to the notification type to support error messages.
+  notification: { message: string; type: 'success' | 'info' | 'dm' | 'error'; senderProfile?: Profile };
   onClose: () => void;
   onClick?: () => void;
 }
@@ -42,6 +43,8 @@ const Notification: React.FC<NotificationProps> = ({ notification, onClose, onCl
                 : <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center flex-shrink-0"><UserIcon className="w-6 h-6 text-gray-300" /></div>;
         }
         if (type === 'success') return <CheckCircleIcon className="w-6 h-6 text-green-400 flex-shrink-0" />;
+        // FIX: Added a case for the 'error' notification type.
+        if (type === 'error') return <XIcon className="w-6 h-6 text-red-400 flex-shrink-0" />;
         // Fallback for 'info'
         return <ChatBubbleIcon className="w-6 h-6 text-blue-400 flex-shrink-0" />;
     }, [type, senderProfile]);

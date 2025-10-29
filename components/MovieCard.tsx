@@ -95,9 +95,9 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
           {movie.title}
         </h3>
         
-        <div className="h-8 flex items-center">
+        <div className="h-8 flex items-center justify-center">
             {loadingGenres ? (
-                <span className="text-xs text-gray-400 italic">Loading genres...</span>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white/50"></div>
             ) : (
                 <div className="flex flex-wrap justify-center gap-1">
                 {genres?.slice(0, 2).map(genre => (

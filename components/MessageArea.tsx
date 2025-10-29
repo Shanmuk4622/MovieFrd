@@ -2,18 +2,15 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { ChatMessage, DirectMessage, Profile } from '../types';
 import { Conversation } from './Chat';
-import { UserIcon, MenuIcon, CheckIcon, CheckDoubleIcon, ClockIcon } from './icons';
+import { UserIcon, CheckDoubleIcon, ClockIcon } from './icons';
 
 interface MessageAreaProps {
   user: User;
   messages: (ChatMessage | DirectMessage)[];
   conversation: Conversation | null;
   isLoading: boolean;
-  isSidebarOpen: boolean;
-  onToggleSidebar: () => void;
   typingUsers: Profile[];
   onSelectProfile: (userId: string) => void;
-  onlineUsers: Set<string>;
   onSetReplyTo: (message: ChatMessage | DirectMessage) => void;
   messagesById: Map<number, ChatMessage | DirectMessage>;
 }
@@ -67,19 +64,7 @@ const TypingIndicator: React.FC<{ users: Profile[] }> = ({ users }) => {
     );
 };
 
-const getEphemeralMessage = (conversation: Conversation | null) => {
-    if (!conversation) return null;
-    if (conversation.type === 'room') {
-        return 'Messages in this room disappear after 12 hours.';
-    }
-    if (conversation.type === 'dm') {
-        return 'Messages in this conversation disappear after 3 days.';
-    }
-    return null;
-};
-
-
-const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile, onlineUsers, onSetReplyTo, messagesById }) => {
+const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, typingUsers, onSelectProfile, onSetReplyTo, messagesById }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -102,7 +87,7 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
 
   useEffect(() => {
     if (!isLoading) {
-        endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
+        endOfMessagesRef.current?.scrollIntoView({ behavior: 'auto' });
     }
   }, [messages, isLoading, typingUsers]);
 
@@ -119,7 +104,6 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
       let lastId: number | null = null;
       for (let i = messages.length - 1; i >= 0; i--) {
           const msg = messages[i];
-          // Check if it's a DM and meets the criteria
           if ('receiver_id' in msg && msg.sender_id === user.id && msg.seen_by?.includes(otherUserId)) {
               lastId = msg.id;
               break;
@@ -128,49 +112,23 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
       return lastId;
   }, [messages, user, otherUserId]);
   
-  const conversationName = conversation ? (conversation.type === 'room' ? conversation.name : conversation.username) : 'Loading...';
-  const conversationDescription = conversation ? (conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`) : 'Please wait';
-  const ephemeralMessage = getEphemeralMessage(conversation);
-  const isOtherUserOnline = conversation?.type === 'dm' && onlineUsers.has(conversation.id);
-  
   const handleReplyClick = (message: ChatMessage | DirectMessage) => {
     onSetReplyTo(message);
   };
+  
+  const ephemeralMessage = useMemo(() => {
+    if (!conversation) return null;
+    if (conversation.type === 'room') {
+        return 'Messages in this room disappear after 12 hours.';
+    }
+    if (conversation.type === 'dm') {
+        return 'Messages in this conversation disappear after 3 days.';
+    }
+    return null;
+  }, [conversation]);
 
   return (
-    <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
-      <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700/50 sticky top-0 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 -mx-4 px-4 flex items-center space-x-2">
-        <button 
-            onClick={onToggleSidebar} 
-            className="lg:hidden text-gray-500 dark:text-gray-400 p-1 -ml-1"
-            aria-controls="chat-sidebar"
-            aria-expanded={isSidebarOpen}
-            aria-label="Open conversation list"
-        >
-            <MenuIcon className="w-6 h-6"/>
-        </button>
-        <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold">
-                  {conversation && (conversation.type === 'room' ? '# ' : '@ ')}
-                  {conversationName}
-              </h2>
-              {isOtherUserOnline && (
-                <div className="flex items-center gap-1.5 animate-fade-in">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-xs text-green-400 font-semibold">Online</span>
-                </div>
-              )}
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[calc(100vw-120px)]">{conversationDescription || 'Welcome!'}</p>
-            {ephemeralMessage && (
-                <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1 flex items-center gap-1.5">
-                    <ClockIcon className="w-3 h-3" />
-                    {ephemeralMessage}
-                </p>
-            )}
-        </div>
-      </div>
+    <div className="flex-1 px-4 pt-2 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
        {isLoading ? (
         <div className="absolute inset-0 bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-center z-20">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div>
@@ -180,10 +138,23 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
             <div className="text-center text-gray-500 dark:text-gray-400">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white">No messages yet</h3>
                 <p>Be the first to say something!</p>
+                {ephemeralMessage && (
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 flex items-center justify-center gap-1.5">
+                        <ClockIcon className="w-3 h-3" />
+                        {ephemeralMessage}
+                    </p>
+                )}
             </div>
         </div>
       ) : (
       <div className="space-y-0 flex-1" ref={messagesContainerRef}>
+        {/* Ephemeral message notice at the top of the chat */}
+        {messages.length > 0 && ephemeralMessage && (
+            <div className="text-center text-xs text-yellow-600 dark:text-yellow-400 py-4 flex items-center justify-center gap-1.5">
+                <ClockIcon className="w-3 h-3" />
+                {ephemeralMessage}
+            </div>
+        )}
         {messages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === user.id;
             const isClickable = !isCurrentUser && !isAnonymousChat;
@@ -200,7 +171,6 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                     key={msg.id} 
                     className={`flex items-start gap-3 ${isCurrentUser ? 'flex-row-reverse' : ''} ${showHeader ? 'mt-4' : 'mt-1'}`}
                 >
-                    {/* Avatar Column */}
                     <div className="w-10 h-10 flex-shrink-0">
                         {showHeader ? (
                             <button
@@ -218,7 +188,6 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                         ) : null}
                     </div>
 
-                    {/* Message Content Column */}
                     <div className={`flex flex-col w-full ${isCurrentUser ? 'items-end' : 'items-start'}`}>
                         {showHeader && (
                             <div className={`flex items-baseline gap-2 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>

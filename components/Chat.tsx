@@ -10,6 +10,7 @@ import { ChatRoom, ChatMessage, Friendship, Profile, DirectMessage } from '../ty
 import RoomSidebar from './RoomSidebar';
 import MessageArea from './MessageArea';
 import MessageInput from './MessageInput';
+import ChatHeader from './ChatHeader';
 import CreateRoomModal from './CreateRoomModal';
 import { supabase } from '../supabaseClient';
 import { ChatBubbleIcon } from './icons';
@@ -22,10 +23,14 @@ interface ChatProps {
 }
 
 const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
-  const { user, profile, onlineUsers, refreshUnreadDms } = useAuth();
+  const { user, profile, onlineUsers, refreshUnreadDms, setNotification } = useAuth();
+  
+  // --- Component-local state ---
+  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
-  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<(ChatMessage | DirectMessage)[]>([]);
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -34,7 +39,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAnonymity, setModalAnonymity] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // --- Reply state ---
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | DirectMessage | null>(null);
@@ -70,8 +74,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         const chatRooms = await getChatRooms();
         const friendships = await getFriendships(user.id);
         
-        // FIX: RLS policies in Supabase can cause this to be empty.
-        // Instead of erroring out, we'll show a welcome message.
         if (chatRooms.length === 0 && friendships.length === 0) {
             console.warn("No chat rooms or friends found. Please check database permissions (RLS) or create a room to get started.");
         }
@@ -83,13 +85,8 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         .map(f => f.requester_id === user.id ? f.addressee : f.requester);
         setFriends(acceptedFriends);
 
-        if (chatRooms.length > 0) {
-            setActiveConversation(current => {
-                if (!current) {
-                    return { ...chatRooms[0], type: 'room' };
-                }
-                return current;
-            });
+        if (chatRooms.length > 0 && !activeConversation) {
+            setActiveConversation({ ...chatRooms[0], type: 'room' });
         }
     } catch (error) {
         console.error("Failed to fetch initial chat data", error);
@@ -97,7 +94,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     } finally {
         setLoading(false);
     }
-  }, [user]);
+  }, [user, activeConversation]);
 
   useEffect(() => {
     fetchInitialData();
@@ -155,39 +152,42 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   useEffect(() => {
     if (!user || !profile) return;
 
-    // --- Real-time Event Handler ---
-    const handleRealtimeMessage = async (payload: any, type: 'room' | 'dm') => {
-        const { eventType, new: newMessage } = payload;
+    const handleRealtimeMessage = async (payload: any) => {
+        const { eventType, new: newMessage, table } = payload;
         
+        const isDm = table === 'direct_messages';
+        const isRoomMessage = table === 'room_messages';
+
         let isForActiveConversation = false;
-        if (activeConversation?.type === type) {
-            if (type === 'room' && newMessage.room_id === activeConversation.id) {
+        if (activeConversation?.type === 'dm' && isDm) {
+            const otherUserId = activeConversation.id;
+            if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) || 
+                (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
                 isForActiveConversation = true;
-            } else if (type === 'dm') {
-                const otherUserId = activeConversation.id;
-                if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) || 
-                    (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
-                    isForActiveConversation = true;
-                }
+            }
+        } else if (activeConversation?.type === 'room' && isRoomMessage) {
+            if (newMessage.room_id === activeConversation.id) {
+                isForActiveConversation = true;
             }
         }
         
         if (isForActiveConversation) {
-            // Ensure sender profile is cached to avoid UI flicker
-            // FIX: Coerce sender_id to string to resolve TypeScript error from 'any' payload.
-            if (newMessage.sender_id && !profileCache.has(String(newMessage.sender_id))) {
-                const senderProfile = await getProfile(String(newMessage.sender_id));
-                if (senderProfile) {
-                    setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
-                    newMessage.profiles = senderProfile;
+            if (newMessage.sender_id) {
+                const senderIdStr = String(newMessage.sender_id);
+                if (!profileCache.has(senderIdStr)) {
+                    const senderProfile = await getProfile(senderIdStr);
+                    if (senderProfile) {
+                        setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
+                        newMessage.profiles = senderProfile;
+                    }
+                } else {
+                    newMessage.profiles = profileCache.get(senderIdStr) || null;
                 }
-            } else if (newMessage.sender_id) {
-                newMessage.profiles = profileCache.get(String(newMessage.sender_id)) || null;
             }
 
             if (eventType === 'INSERT') {
                 setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
-                if (type === 'dm' && newMessage.sender_id === activeConversation.id) {
+                if (activeConversation?.type === 'dm' && newMessage.sender_id === activeConversation.id) {
                    await markDirectMessagesAsSeen(activeConversation.id, user.id);
                    refreshUnreadDms();
                 }
@@ -195,24 +195,18 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             if (eventType === 'UPDATE') {
                 setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
             }
-        } else if (eventType === 'INSERT' && type === 'dm' && newMessage.receiver_id === user.id) {
-            // A DM for a non-active chat arrived, refresh global unread state
+        } else if (eventType === 'INSERT' && isDm && newMessage.receiver_id === user.id) {
             refreshUnreadDms();
         }
     };
 
-    // --- Subscription Setup ---
+    const allMessagesSubscription = subscribeToAllDirectMessagesForUser(user.id, handleRealtimeMessage);
     
-    // 1. Global subscription for all DMs
-    const dmSubscription = subscribeToAllDirectMessagesForUser(user.id, (payload) => handleRealtimeMessage(payload, 'dm'));
-
-    // 2. Room subscription for active room
     let roomSubscription: RealtimeChannel | null = null;
     if (activeConversation?.type === 'room') {
-        roomSubscription = subscribeToRoomMessages(activeConversation.id, (payload) => handleRealtimeMessage(payload, 'room'));
+        roomSubscription = subscribeToRoomMessages(activeConversation.id, handleRealtimeMessage);
     }
 
-    // 3. Typing events for active conversation
     const handleTypingEvent = (payload: { userId: string, username: string }) => {
         if (payload.userId !== user.id) {
             if (typingTimers.current.has(payload.userId)) clearTimeout(typingTimers.current.get(payload.userId)!);
@@ -240,9 +234,8 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         typingChannelRef.current = channel;
     }
 
-    // --- Cleanup ---
     return () => {
-      supabase.removeChannel(dmSubscription);
+      supabase.removeChannel(allMessagesSubscription);
       if (roomSubscription) supabase.removeChannel(roomSubscription);
       if (typingChannelRef.current) {
         supabase.removeChannel(typingChannelRef.current);
@@ -254,25 +247,50 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!user || !activeConversation || !content.trim()) return;
+    
+    let tempId = Date.now();
+    
     try {
-        let newMessage: ChatMessage | DirectMessage | null = null;
         if (activeConversation.type === 'room') {
-            newMessage = await sendMessage(activeConversation.id, user.id, content.trim(), replyToMessage?.id);
+            const optimisticMessage: ChatMessage = {
+                id: tempId,
+                room_id: activeConversation.id,
+                sender_id: user.id,
+                content: content.trim(),
+                created_at: new Date().toISOString(),
+                profiles: profile,
+                reply_to_message_id: replyToMessage?.id || null,
+            };
+            setMessages(prev => [...prev, optimisticMessage]);
+            setReplyToMessage(null);
+            
+            const savedMessage = await sendMessage(activeConversation.id, user.id, content.trim(), replyToMessage?.id);
+            setMessages(prev => prev.map(m => m.id === tempId ? savedMessage : m));
+
         } else {
-            newMessage = await sendDirectMessage(user.id, activeConversation.id, content.trim(), replyToMessage?.id);
+            const optimisticMessage: DirectMessage = {
+                id: tempId,
+                sender_id: user.id,
+                receiver_id: activeConversation.id,
+                content: content.trim(),
+                created_at: new Date().toISOString(),
+                profiles: profile,
+                reply_to_message_id: replyToMessage?.id || null,
+            };
+            setMessages(prev => [...prev, optimisticMessage]);
+            setReplyToMessage(null);
+
+            const savedMessage = await sendDirectMessage(user.id, activeConversation.id, content.trim(), replyToMessage?.id);
+            setMessages(prev => prev.map(m => m.id === tempId ? savedMessage : m));
         }
-        
-        // FIX: Add the new message to the local state immediately for a responsive UI.
-        // The realtime handler has a de-duplication check to prevent this from appearing twice.
-        if (newMessage) {
-            setMessages(prev => [...prev, newMessage]);
-        }
-    } catch (error) {
-      console.error("Failed to send message", error);
-    } finally {
-        setReplyToMessage(null); // Clear reply state after sending
+
+    } catch (error: any) {
+        console.error("Error sending message:", error);
+        setNotification({ message: `Failed to send message: ${error.message || 'Check permissions.'}`, type: 'error' });
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        if(replyToMessage) setReplyToMessage(replyToMessage);
     }
-  }, [user, activeConversation, replyToMessage]);
+  }, [user, profile, activeConversation, replyToMessage, setNotification]);
 
   const handleTyping = useCallback((isTyping: boolean) => {
     if (!typingChannelRef.current || !user || !profile) return;
@@ -291,7 +309,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   
   const handleCreateRoom = async (name: string, description: string | null) => {
     const newRoom = await createChatRoom(name, description, modalAnonymity);
-    await fetchInitialData(); // Refreshes rooms
+    await fetchInitialData();
     setActiveConversation({ ...newRoom, type: 'room' });
   };
   
@@ -305,27 +323,9 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const renderMainContent = () => {
     if (loading) {
       return (
-        <div className="flex-1 flex flex-col">
-          <MessageArea
-            user={user!}
-            messages={[]}
-            conversation={null}
-            isLoading={true}
-            isSidebarOpen={isSidebarOpen}
-            onToggleSidebar={() => setIsSidebarOpen(true)}
-            typingUsers={[]}
-            onSelectProfile={onSelectProfile}
-            onlineUsers={onlineUsers}
-            onSetReplyTo={() => {}}
-            messagesById={new Map()}
-          />
-          <MessageInput 
-            onSendMessage={() => {}} 
-            onTyping={() => {}} 
-            replyToMessage={null}
-            onCancelReply={() => {}}
-            isAnonymousChat={false}
-          />
+        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500 mb-4"></div>
+            <p>Loading conversations...</p>
         </div>
       );
     }
@@ -341,7 +341,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
     if (!activeConversation) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 p-4 text-center">
+        <div className="flex-1 flex-col items-center justify-center text-gray-500 dark:text-gray-400 p-4 text-center hidden lg:flex">
           <ChatBubbleIcon className="w-16 h-16 text-gray-400 dark:text-gray-600 mb-4" />
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Welcome to Chat</h3>
           <p>Select a conversation or create a room to get started.</p>
@@ -350,17 +350,19 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     }
 
     return (
-      <>
+      <div className="flex flex-col flex-1 min-w-0 h-full">
+        <ChatHeader 
+          activeConversation={activeConversation}
+          onlineUsers={onlineUsers}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        />
         <MessageArea
           user={user!}
           messages={messages}
           conversation={activeConversation}
           isLoading={messagesLoading}
-          isSidebarOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen(true)}
           typingUsers={typingUsers}
           onSelectProfile={onSelectProfile}
-          onlineUsers={onlineUsers}
           onSetReplyTo={setReplyToMessage}
           messagesById={messagesById}
         />
@@ -371,7 +373,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
           onCancelReply={() => setReplyToMessage(null)}
           isAnonymousChat={activeConversation.type === 'room' && activeConversation.is_anonymous}
         />
-      </>
+      </div>
     );
   };
 
@@ -385,12 +387,12 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             setActiveConversation={handleSelectConversation}
             onOpenCreateRoom={handleOpenCreateRoom}
             onlineUsers={onlineUsers}
-            unreadCounts={{}} // unreadCounts prop removed for now
+            unreadCounts={{}}
             isOpen={isSidebarOpen}
             setIsOpen={setIsSidebarOpen}
             isLoading={loading}
         />
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className={`flex flex-col flex-1 min-w-0 transition-transform duration-300 ease-in-out ${activeConversation ? '' : 'hidden lg:flex'}`}>
           {renderMainContent()}
         </div>
       </div>
