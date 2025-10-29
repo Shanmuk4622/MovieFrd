@@ -12,10 +12,16 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
   const { user, profile, signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
+  const handleSearchSubmit = () => {
+    if (searchQuery.trim()) {
       onSearch(searchQuery.trim());
       setSearchQuery('');
+    }
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
     }
   };
 
@@ -40,9 +46,14 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
               onKeyDown={handleSearchKeyDown}
               className="w-full bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
             />
-            <div className="absolute left-3 top-1/2 -translate-y-1/2">
-              <SearchIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            </div>
+            <button
+              type="button"
+              onClick={handleSearchSubmit}
+              aria-label="Submit search"
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500/50"
+            >
+              <SearchIcon className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
