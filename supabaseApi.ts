@@ -189,6 +189,20 @@ export const subscribeToRoomMessages = (
 
 // --- Friendship and DM Functions ---
 
+export const getAllUsers = async (currentUserId: string): Promise<Profile[]> => {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .not('id', 'eq', currentUserId)
+        .order('username', { ascending: true });
+
+    if (error) {
+        console.error("Error fetching all users:", error);
+        return [];
+    }
+    return data || [];
+};
+
 export const searchUsers = async (query: string, currentUserId: string): Promise<Profile[]> => {
     const { data, error } = await supabase
         .from('profiles')

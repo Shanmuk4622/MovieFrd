@@ -88,6 +88,7 @@ const App: React.FC = () => {
                 userMovieLists={userMovieLists} 
                 onListUpdate={handleListUpdate}
                 onSelectMovie={handleSelectMovie}
+                onSelectProfile={handleSelectProfile}
             />;
         case 'search':
             return <SearchResults

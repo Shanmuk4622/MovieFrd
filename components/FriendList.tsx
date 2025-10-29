@@ -11,11 +11,12 @@ interface FriendListProps {
   friendships: Friendship[];
   onFriendAction: () => void;
   isLoading: boolean;
+  onSelectProfile: (userId: string) => void;
 }
 
 type Tab = 'friends' | 'incoming' | 'pending';
 
-const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFriendAction, isLoading }) => {
+const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFriendAction, isLoading, onSelectProfile }) => {
   const [activeTab, setActiveTab] = useState<Tab>('friends');
 
   const { friends, incomingRequests, pendingRequests } = useMemo(() => {
@@ -57,18 +58,21 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
     }
   };
 
-  const TabButton: React.FC<{ tab: Tab; label: string; count: number }> = ({ tab, label, count }) => (
+  const TabButton: React.FC<{ tab: Tab; label: string; count: number, isNotification?: boolean }> = ({ tab, label, count, isNotification = false }) => (
     <button
       onClick={() => setActiveTab(tab)}
-      className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors relative ${
+      className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors relative flex items-center ${
         activeTab === tab ? 'bg-red-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
       }`}
     >
-      {label}
-      {count > 0 && (
+      <span>{label}</span>
+      {isNotification && count > 0 && (
         <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-            {count}
+            {count > 9 ? '9+' : count}
         </span>
+      )}
+      {!isNotification && count > 0 && (
+         <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400 font-normal">({count})</span>
       )}
     </button>
   );
@@ -81,7 +85,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
       </div>
       <div className="flex space-x-2 mb-4">
         <TabButton tab="friends" label="Friends" count={friends.length} />
-        <TabButton tab="incoming" label="Requests" count={incomingRequests.length} />
+        <TabButton tab="incoming" label="Requests" count={incomingRequests.length} isNotification={true} />
         <TabButton tab="pending" label="Sent" count={pendingRequests.length} />
       </div>
 
@@ -94,7 +98,12 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
                   const friend = f.requester_id === currentUser.id ? f.addressee : f.requester;
                   return (
                     <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
-                      <span className="font-semibold">{friend.username}</span>
+                      <button 
+                        onClick={() => onSelectProfile(friend.id)} 
+                        className="font-semibold hover:underline truncate"
+                      >
+                        {friend.username}
+                      </button>
                       <button onClick={() => handleRemoveFriend(f.id)} className="text-gray-500 dark:text-gray-400 hover:text-red-500 p-1"><XIcon className="w-4 h-4"/></button>
                     </div>
                   )

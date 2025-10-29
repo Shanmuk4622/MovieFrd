@@ -7,7 +7,7 @@ import { getFriendships, uploadAvatar } from '../supabaseApi';
 import { Movie, Friendship, UserMovieList } from '../types';
 import { fetchMovieDetails } from '../api';
 import MovieList from './MovieList';
-import UserSearch from './UserSearch';
+import UserDiscovery from './UserSearch';
 import FriendList from './FriendList';
 import { UserIcon } from './icons';
 import { MovieListSkeleton } from './skeletons';
@@ -16,9 +16,10 @@ interface ProfileProps {
   userMovieLists: UserMovieList[];
   onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
+  onSelectProfile: (userId: string) => void;
 }
 
-const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
+const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
   const { user, profile, refreshProfile, signOut } = useAuth();
   const [watched, setWatched] = useState<Movie[]>([]);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
@@ -30,6 +31,9 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  
+  // Sign out state
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const fetchFriendships = useCallback(async () => {
     if (!user) return;
@@ -116,6 +120,18 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
       setUploading(false);
     }
   };
+  
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+        await signOut();
+        // Auth listener in context will handle redirect.
+    } catch (error) {
+        console.error("Error signing out:", error);
+    } finally {
+        setIsSigningOut(false);
+    }
+  };
 
   if (!user || !profile) {
     return <div className="text-center p-8">Loading profile...</div>;
@@ -186,17 +202,24 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
 
             <div className="mt-8">
               <button
-                onClick={() => signOut()}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors disabled:bg-red-800 disabled:cursor-not-allowed"
               >
-                Sign Out
+                {isSigningOut ? 'Signing Out...' : 'Sign Out'}
               </button>
             </div>
         </div>
         <div className="md:col-span-1">
             <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 space-y-6 shadow-sm">
-                <UserSearch currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
-                <FriendList currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} isLoading={loadingFriendships} />
+                <UserDiscovery currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
+                <FriendList 
+                  currentUser={user} 
+                  friendships={friendships} 
+                  onFriendAction={fetchFriendships} 
+                  isLoading={loadingFriendships} 
+                  onSelectProfile={onSelectProfile}
+                />
             </div>
         </div>
     </div>
