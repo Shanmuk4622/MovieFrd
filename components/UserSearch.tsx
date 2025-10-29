@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { searchUsers, sendFriendRequest } from '../supabaseApi';
@@ -128,5 +127,4 @@ const UserSearch: React.FC<UserSearchProps> = ({ currentUser, friendships, onFri
   );
 };
 
-// FIX: Added a default export to allow this component to be imported by others.
 export default UserSearch;

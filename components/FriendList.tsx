@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Friendship } from '../types';

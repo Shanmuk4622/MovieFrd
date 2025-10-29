@@ -64,8 +64,10 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
         const chatRooms = await getChatRooms();
         const friendships = await getFriendships(user.id);
         
+        // FIX: RLS policies in Supabase can cause this to be empty.
+        // Instead of erroring out, we'll show a welcome message.
         if (chatRooms.length === 0 && friendships.length === 0) {
-            setInitializationError("No chat rooms or friends found. Please check database permissions (RLS) or create a room to get started.");
+            console.warn("No chat rooms or friends found. Please check database permissions (RLS) or create a room to get started.");
         }
         
         setRooms(chatRooms);
@@ -210,6 +212,9 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
         } else {
             newMessage = await sendDirectMessage(user.id, activeConversation.id, content.trim());
         }
+        
+        // FIX: Add the new message to the local state immediately for a responsive UI.
+        // The realtime handler has a de-duplication check to prevent this from appearing twice.
         if (newMessage) {
             setMessages(prev => [...prev, newMessage]);
         }
@@ -272,7 +277,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile }) => {
         <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 p-4 text-center">
           <ChatBubbleIcon className="w-16 h-16 text-gray-400 dark:text-gray-600 mb-4" />
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Welcome to Chat</h3>
-          <p>Select a conversation from the sidebar to begin.</p>
+          <p>Select a conversation or create a room to get started.</p>
         </div>
       );
     }

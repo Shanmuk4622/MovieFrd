@@ -4,6 +4,7 @@ export interface Movie {
   title: string;
   posterUrl: string;
   rating: number;
+  releaseDate?: string;
 }
 
 // FIX: Moved UserMovieList from supabaseApi.ts to centralize types and fix import error.
