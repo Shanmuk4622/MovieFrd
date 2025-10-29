@@ -91,7 +91,14 @@ export const removeMovieFromList = async (userId: string, movieId: number) => {
 };
 
 // --- New Function for Friend Activity ---
-export const getFriendActivity = async (userId: string) => {
+// FIX: Define a specific type for friend activity to ensure type safety.
+// This resolves an 'unknown' type error in Dashboard.tsx.
+export type FriendActivity = UserMovieList & {
+    created_at: string;
+    profiles: Profile | null;
+};
+
+export const getFriendActivity = async (userId: string): Promise<FriendActivity[]> => {
     // Step 1: Get the list of accepted friend IDs
     const { data: friendships, error: friendsError } = await supabase
         .from('friendships')
@@ -122,7 +129,7 @@ export const getFriendActivity = async (userId: string) => {
         console.error("Error fetching friend activity:", error);
         return [];
     }
-    return data;
+    return (data as FriendActivity[]) || [];
 };
 
 

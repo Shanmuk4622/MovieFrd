@@ -18,6 +18,7 @@ interface TmdbMovie {
   title: string;
   poster_path: string;
   vote_average: number;
+  release_date: string;
 }
 
 interface TmdbMovieDetail extends TmdbMovie {
@@ -50,6 +51,7 @@ const mapTmdbMovieToMovie = (tmdbMovie: TmdbMovie): Movie => ({
   title: tmdbMovie.title,
   posterUrl: tmdbMovie.poster_path ? `${IMAGE_BASE_URL}${tmdbMovie.poster_path}`: 'https://via.placeholder.com/500x750.png?text=No+Image',
   rating: tmdbMovie.vote_average,
+  releaseDate: tmdbMovie.release_date,
 });
 
 const checkApiKey = () => {

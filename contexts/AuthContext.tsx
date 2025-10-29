@@ -76,76 +76,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
-  // FIX: Replaced session management with a hybrid model to fix race conditions.
+  // FIX: The previous session management logic was complex and prone to race conditions.
+  // It has been replaced with a simpler, more robust model relying solely on `onAuthStateChange`.
   useEffect(() => {
-    let mounted = true;
+    setLoading(true);
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const currentUser = session?.user;
+        setSession(session);
+        setUser(currentUser ?? null);
 
-    const syncSession = async () => {
-      console.log('🔁 Syncing session...');
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        console.log('✅ Session fetched:', data.session);
-        if (mounted) {
-          const currentSession = data.session;
-          setSession(currentSession);
-          const currentUser = currentSession?.user ?? null;
-          setUser(currentUser);
-          if (currentUser) {
+        if (currentUser) {
+          try {
             await fetchUserDependentData(currentUser);
-          } else {
+          } catch (e) {
+            console.error("Failed to fetch user data:", e);
+            // Clear data on error to prevent inconsistent state
             setProfile(null);
             setUserMovieLists([]);
           }
-        }
-      } catch (err: any) {
-        console.error('❌ Session sync failed:', err.message);
-        // Force sign out on corrupted session to prevent getting stuck.
-        await supabase.auth.signOut();
-        if (mounted) {
-          setSession(null);
-          setUser(null);
+        } else {
           setProfile(null);
           setUserMovieLists([]);
         }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
 
-    // Force initial session sync on app load.
-    syncSession();
-
-    // Listen for auth events (SIGN_IN, SIGN_OUT, TOKEN_REFRESHED).
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        console.log('⚡ Auth event:', event);
-        if (mounted) {
-          if (newSession) {
-            // Manually sync Supabase client state to prevent stale tokens.
-            await supabase.auth.setSession(newSession);
-            setSession(newSession);
-            const currentUser = newSession.user;
-            setUser(currentUser);
-            // Re-fetch data if user context changes (e.g., login).
-            if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-              await fetchUserDependentData(currentUser);
-            }
-          } else {
-            // If session is null, clear all user-specific data.
-            setSession(null);
-            setUser(null);
-            setProfile(null);
-            setUserMovieLists([]);
-          }
-        }
+        setLoading(false);
       }
     );
 
     return () => {
-      mounted = false;
       authListener.subscription.unsubscribe();
     };
   }, [fetchUserDependentData]);
