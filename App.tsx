@@ -9,18 +9,14 @@ import MovieDetail from './components/MovieDetail';
 import Notification from './components/Notification';
 import UserProfileModal from './components/UserProfileModal';
 import { useAuth } from './contexts/AuthContext';
-// FIX: UserMovieList is now imported from types.ts
-import { getUserMovieLists } from './supabaseApi';
-import { Movie, UserMovieList } from './types';
+import { Movie } from './types';
 import { searchMovies } from './api';
 
 export type View = 'dashboard' | 'profile' | 'search' | 'chat';
 
 const App: React.FC = () => {
-  const { session, user } = useAuth();
+  const { session, userMovieLists, refreshUserMovieLists } = useAuth();
   const [view, setView] = useState<View>('dashboard');
-  const [userMovieLists, setUserMovieLists] = useState<UserMovieList[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // State for search functionality
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,22 +30,8 @@ const App: React.FC = () => {
   // State for notifications
   const [notification, setNotification] = useState<{ message: string; type: 'success' } | null>(null);
 
-  useEffect(() => {
-    if (session && user) {
-      setLoading(true);
-      getUserMovieLists(user.id)
-        .then(lists => setUserMovieLists(lists || []))
-        .catch(error => console.error("Failed to fetch user movie lists", error))
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
-  }, [session, user]);
-  
   const handleListUpdate = (message: string) => {
-    if (user) {
-        getUserMovieLists(user.id).then(lists => setUserMovieLists(lists || []));
-    }
+    refreshUserMovieLists();
     setNotification({ message, type: 'success' });
   };
   
@@ -91,14 +73,6 @@ const App: React.FC = () => {
   
   if (!session) {
     return <Auth />;
-  }
-  
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
-      </div>
-    );
   }
 
   const renderContent = () => {

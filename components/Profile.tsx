@@ -51,17 +51,31 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
   }, [user, fetchFriendships]);
 
   useEffect(() => {
+    const fetchMoviesInChunks = async (ids: number[]): Promise<Movie[]> => {
+        const allMovies: Movie[] = [];
+        const chunkSize = 10; // Fetch 10 movies at a time
+        for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunkIds = ids.slice(i, i + chunkSize);
+            const moviePromises = chunkIds.map(id => fetchMovieDetails(id));
+            const moviesInChunk = await Promise.all(moviePromises);
+            allMovies.push(...moviesInChunk.filter((m): m is Movie => m !== null));
+        }
+        return allMovies;
+    };
+
     const fetchMovieDataForLists = async () => {
       setLoadingMovies(true);
       const watchedIds = userMovieLists.filter(item => item.list_type === 'watched').map(item => item.tmdb_movie_id);
       const watchlistIds = userMovieLists.filter(item => item.list_type === 'watchlist').map(item => item.tmdb_movie_id);
 
       try {
-        const watchedMovies = await Promise.all(watchedIds.map(id => fetchMovieDetails(id)));
-        const watchlistMovies = await Promise.all(watchlistIds.map(id => fetchMovieDetails(id)));
+        const [watchedMovies, watchlistMovies] = await Promise.all([
+          fetchMoviesInChunks(watchedIds),
+          fetchMoviesInChunks(watchlistIds)
+        ]);
         
-        setWatched(watchedMovies.filter((m): m is Movie => m !== null));
-        setWatchlist(watchlistMovies.filter((m): m is Movie => m !== null));
+        setWatched(watchedMovies);
+        setWatchlist(watchlistMovies);
 
       } catch (error) {
         console.error("Error fetching movie details for lists:", error);
