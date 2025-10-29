@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 // FIX: UserMovieList is now imported from types.ts
@@ -16,7 +17,7 @@ interface ProfileProps {
 }
 
 const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
-  const { user, profile, refreshProfile, theme, toggleTheme } = useAuth();
+  const { user, profile, refreshProfile, theme, toggleTheme, signOut } = useAuth();
   const [watched, setWatched] = useState<Movie[]>([]);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
   const [loadingMovies, setLoadingMovies] = useState(true);
@@ -172,6 +173,15 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
                 />
                 </>
             )}
+
+            <div className="mt-8">
+              <button
+                onClick={() => signOut()}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
         </div>
         <div className="md:col-span-1">
             <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 space-y-6 shadow-sm">

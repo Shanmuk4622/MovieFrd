@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { SearchIcon, UserIcon, PlayIcon } from './icons';
+import { SearchIcon, UserIcon, PlayIcon, ChatBubbleIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 import { View } from '../App';
 
@@ -9,7 +10,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchSubmit = () => {
@@ -67,15 +68,15 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
           </div>
 
           {/* Right-side navigation */}
-          <div className="flex items-center space-x-4">
-            <button
+          <div className="flex items-center space-x-2 sm:space-x-4">
+             <button
               onClick={() => setView('chat')}
-              className="hidden md:block text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-red-500 transition-colors"
+              className="p-2 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50 hover:text-red-500 transition-colors"
+              aria-label="Open chat"
             >
-              Chat
+              <ChatBubbleIcon className="w-6 h-6" />
             </button>
             {user ? (
-              <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setView('profile')}
                   className="flex items-center space-x-2 group"
@@ -89,13 +90,6 @@ const Header: React.FC<HeaderProps> = ({ setView, onSearch }) => {
                       {profile?.username || user.email}
                   </span>
                 </button>
-                <button
-                  onClick={() => signOut()}
-                  className="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1.5 px-3 rounded-md transition-colors"
-                >
-                  Sign Out
-                </button>
-              </div>
             ) : (
               <UserIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" />
             )}

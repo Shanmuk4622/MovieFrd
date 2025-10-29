@@ -83,7 +83,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
           {profile.avatar_url ? (
             <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover shadow-lg" />
           ) : (
-            <UserIcon className="w-20 h-20 text-gray-500 dark:text-gray-400" />
+            <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+              <UserIcon className="w-12 h-12 text-gray-500 dark:text-gray-400" />
+            </div>
           )}
           <div>
             <h1 className="text-3xl font-bold">{profile.username}</h1>

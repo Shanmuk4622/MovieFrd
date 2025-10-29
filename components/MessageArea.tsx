@@ -192,18 +192,22 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                     data-seen={isSeenByCurrentUser.toString()}
                 >
                     {/* Avatar Column */}
-                    <button 
-                        className="w-10 h-10 flex-shrink-0 disabled:cursor-default" 
-                        onClick={() => !isCurrentUser && onSelectProfile(msg.sender_id)}
-                        disabled={isCurrentUser}
-                        aria-label={`View profile of ${getDisplayName(msg)}`}
-                    >
+                    <div className="w-10 h-10 flex-shrink-0">
                         {showHeader ? (
-                            <div className={`w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center ${!isCurrentUser && 'hover:ring-2 hover:ring-red-500 transition-all'}`}>
-                               <UserIcon className="w-6 h-6 text-gray-400 dark:text-gray-400"/>
-                            </div>
-                        ) : <div className="w-10 h-10"></div>}
-                    </button>
+                            <button
+                                className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center disabled:cursor-default"
+                                onClick={() => !isCurrentUser && onSelectProfile(msg.sender_id)}
+                                disabled={isCurrentUser}
+                                aria-label={`View profile of ${getDisplayName(msg)}`}
+                            >
+                                {msg.profiles?.avatar_url ? (
+                                    <img src={msg.profiles.avatar_url} alt={getDisplayName(msg)} className={`w-full h-full rounded-full object-cover ${!isCurrentUser && 'hover:ring-2 hover:ring-red-500 transition-all'}`}/>
+                                ) : (
+                                    <UserIcon className="w-6 h-6 text-gray-400 dark:text-gray-400"/>
+                                )}
+                            </button>
+                        ) : null}
+                    </div>
 
                     {/* Message Content Column */}
                     <div className={`flex flex-col w-full ${isCurrentUser ? 'items-end' : 'items-start'}`}>
