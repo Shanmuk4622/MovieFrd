@@ -124,12 +124,18 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
-        await signOut();
-        // Auth listener in context will handle redirect.
+      const { error } = await signOut();
+      if (error) {
+        // Throw the error to be handled by the catch block
+        throw error;
+      }
+      // If sign out is successful, the Auth listener in the context
+      // will handle redirecting the user to the Auth page.
     } catch (error) {
-        console.error("Error signing out:", error);
+      console.error("Error signing out:", error);
+      // We could add a user-facing notification here, but for now logging is sufficient.
     } finally {
-        setIsSigningOut(false);
+      setIsSigningOut(false);
     }
   };
 
