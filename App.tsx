@@ -5,13 +5,13 @@ import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
 import SearchResults from './components/SearchResults';
 import Chat from './components/Chat';
-import MovieDetail from './components/MovieDetail'; // New import
+import MovieDetail from './components/MovieDetail';
 import { useAuth } from './contexts/AuthContext';
 import { UserMovieList, getUserMovieLists } from './supabaseApi';
 import { Movie } from './types';
 import { searchMovies } from './api';
 
-export type View = 'dashboard' | 'profile' | 'search' | 'chat' | 'movieDetail';
+export type View = 'dashboard' | 'profile' | 'search' | 'chat';
 
 const App: React.FC = () => {
   const { session, user } = useAuth();
@@ -24,7 +24,7 @@ const App: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   
-  // State for movie detail view
+  // State for movie detail modal
   const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -65,7 +65,6 @@ const App: React.FC = () => {
   
   const handleSelectMovie = (movieId: number) => {
     setSelectedMovieId(movieId);
-    setView('movieDetail');
   };
 
   const handleSetView = (newView: View) => {
@@ -73,9 +72,7 @@ const App: React.FC = () => {
         setSearchQuery('');
         setSearchResults([]);
     }
-    if (newView !== 'movieDetail') {
-        setSelectedMovieId(null);
-    }
+    setSelectedMovieId(null); // Close modal when view changes
     setView(newView);
   };
   
@@ -83,7 +80,7 @@ const App: React.FC = () => {
     return <Auth />;
   }
   
-  if (loading && !selectedMovieId) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
@@ -116,8 +113,6 @@ const App: React.FC = () => {
             />;
         case 'chat':
             return <Chat />;
-        case 'movieDetail':
-            return selectedMovieId ? <MovieDetail movieId={selectedMovieId} setView={handleSetView} /> : null;
         default:
             return null;
     }
@@ -133,6 +128,7 @@ const App: React.FC = () => {
       <main className={mainContainerClasses}>
         {renderContent()}
       </main>
+      {selectedMovieId && <MovieDetail movieId={selectedMovieId} onClose={() => setSelectedMovieId(null)} />}
     </div>
   );
 };

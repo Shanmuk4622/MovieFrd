@@ -66,12 +66,17 @@ const Chat: React.FC = () => {
       .map(f => f.requester_id === user.id ? f.addressee : f.requester);
     setFriends(acceptedFriends);
 
-    if (chatRooms.length > 0 && !activeConversation) {
-      setActiveConversation({ ...chatRooms[0], type: 'room' });
+    if (chatRooms.length > 0) {
+      setActiveConversation(current => {
+        if (!current) {
+          return { ...chatRooms[0], type: 'room' };
+        }
+        return current;
+      });
     }
     
     setLoading(false);
-  }, [user, activeConversation]);
+  }, [user]);
 
   useEffect(() => {
     fetchInitialData();
@@ -125,7 +130,7 @@ const Chat: React.FC = () => {
     const handleTypingEvent = (payload: { userId: string, username: string }) => {
         if (payload.userId !== user.id) {
             if (typingTimers.current.has(payload.userId)) {
-                clearTimeout(typingTimers.current.get(payload.userId));
+                clearTimeout(typingTimers.current.get(payload.userId)!);
             }
             setTypingUsers(prev => {
                 if (prev.find(u => u.id === payload.userId)) return prev;
@@ -141,7 +146,7 @@ const Chat: React.FC = () => {
 
     const handleStopTypingEvent = (payload: { userId: string }) => {
         if (typingTimers.current.has(payload.userId)) {
-            clearTimeout(typingTimers.current.get(payload.userId));
+            clearTimeout(typingTimers.current.get(payload.userId)!);
             typingTimers.current.delete(payload.userId);
         }
         setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
