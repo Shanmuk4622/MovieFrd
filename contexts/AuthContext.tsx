@@ -61,6 +61,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const getSessionAndProfile = async () => {
+      try {
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user ?? null);
@@ -68,7 +69,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const profileData = await getProfile(session.user.id);
             setProfile(profileData);
         }
+      } catch (error) {
+        console.error("Error fetching session on initial load:", error);
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      } finally {
         setLoading(false);
+      }
     }
     
     getSessionAndProfile();

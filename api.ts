@@ -7,6 +7,10 @@ const API_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const IMAGE_BASE_URL_W200 = 'https://image.tmdb.org/t/p/w200';
 
+// Simple in-memory cache
+const movieDetailsCache = new Map<number, Movie>();
+const movieDetailsExtendedCache = new Map<number, MovieDetail>();
+
 interface TmdbMovie {
   id: number;
   title: string;
@@ -64,13 +68,18 @@ export const fetchMovies = async (endpoint: string): Promise<Movie[]> => {
 
 // FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const fetchMovieDetails = async (movieId: number): Promise<Movie | null> => {
+  if (movieDetailsCache.has(movieId)) {
+    return movieDetailsCache.get(movieId)!;
+  }
   try {
     const response = await fetch(`${API_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch movie details for ID ${movieId}`);
     }
     const data: TmdbMovie = await response.json();
-    return mapTmdbMovieToMovie(data);
+    const movie = mapTmdbMovieToMovie(data);
+    movieDetailsCache.set(movieId, movie);
+    return movie;
   } catch (error) {
     console.error(error);
     return null;
@@ -96,6 +105,9 @@ export const searchMovies = async (query: string): Promise<Movie[]> => {
 
 // FIX: Removed condition that checked for placeholder API key, which was causing a type error.
 export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieDetail | null> => {
+    if (movieDetailsExtendedCache.has(movieId)) {
+        return movieDetailsExtendedCache.get(movieId)!;
+    }
     try {
         const [detailsRes, creditsRes, videosRes] = await Promise.all([
             fetch(`${API_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}`),
@@ -121,7 +133,7 @@ export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieD
         const officialTrailer = videos.results.find(v => v.site === 'YouTube' && v.type === 'Trailer');
         const trailerUrl = officialTrailer ? `https://www.youtube.com/embed/${officialTrailer.key}` : null;
 
-        return {
+        const movieDetail: MovieDetail = {
             id: details.id,
             title: details.title,
             posterUrl: details.poster_path ? `${IMAGE_BASE_URL}${details.poster_path}` : 'https://via.placeholder.com/500x750.png?text=No+Image',
@@ -132,6 +144,9 @@ export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieD
             cast,
             trailerUrl,
         };
+        
+        movieDetailsExtendedCache.set(movieId, movieDetail);
+        return movieDetail;
 
     } catch (error) {
         console.error(error);
