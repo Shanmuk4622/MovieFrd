@@ -108,7 +108,7 @@ export const getFriendActivity = async (userId: string): Promise<FriendActivity[
 
     if (friendsError) {
         console.error("Error fetching friends for activity feed:", friendsError);
-        return [];
+        throw friendsError;
     }
     
     const friendIds = friendships.map(f => f.requester_id === userId ? f.addressee_id : f.requester_id);
@@ -127,7 +127,7 @@ export const getFriendActivity = async (userId: string): Promise<FriendActivity[
 
     if (error) {
         console.error("Error fetching friend activity:", error);
-        return [];
+        throw error;
     }
     return (data as FriendActivity[]) || [];
 };
