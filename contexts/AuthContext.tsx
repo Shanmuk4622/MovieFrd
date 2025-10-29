@@ -76,37 +76,82 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
-  // FIX: The previous session management logic was complex and prone to race conditions.
-  // It has been replaced with a simpler, more robust model relying solely on `onAuthStateChange`.
+  // Use a single global auth-state listener and a subscriber list so that
+  // we never create multiple GoTrueClient listeners that fight over storage
+  // (this also survives HMR in dev when `supabaseClient` is a singleton).
   useEffect(() => {
-    setLoading(true);
-    
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const currentUser = session?.user;
-        setSession(session);
-        setUser(currentUser ?? null);
+    const globalObj = (globalThis as any) || window;
 
-        if (currentUser) {
+    // Ensure subscriber list exists
+    if (!globalObj.__supabaseAuthSubscribers) {
+      globalObj.__supabaseAuthSubscribers = [];
+    }
+
+    // Initialize the single global auth listener once
+    if (!globalObj.__supabaseAuthInitialized) {
+      globalObj.__supabaseAuthInitialized = true;
+      try {
+        supabase.auth.onAuthStateChange((event: string, session: Session | null) => {
           try {
-            await fetchUserDependentData(currentUser);
+            (globalObj.__supabaseAuthSubscribers || []).forEach((cb: any) => {
+              try { cb(event, session); } catch (e) { console.error('supabase subscriber error', e); }
+            });
           } catch (e) {
-            console.error("Failed to fetch user data:", e);
-            // Clear data on error to prevent inconsistent state
-            setProfile(null);
-            setUserMovieLists([]);
+            console.error('Failed to dispatch auth event to subscribers', e);
           }
-        } else {
+        });
+      } catch (e) {
+        console.error('Failed to initialize Supabase auth listener', e);
+      }
+    }
+
+    setLoading(true);
+
+    // Subscriber for this AuthProvider instance
+    const handleAuthEvent = async (_event: string, session: Session | null) => {
+      const currentUser = session?.user ?? null;
+      setSession(session);
+      setUser(currentUser);
+
+      if (currentUser) {
+        try {
+          await fetchUserDependentData(currentUser);
+        } catch (e) {
+          console.error('Failed to fetch user data:', e);
           setProfile(null);
           setUserMovieLists([]);
         }
+      } else {
+        setProfile(null);
+        setUserMovieLists([]);
+      }
 
+      setLoading(false);
+    };
+
+    // Register
+    globalObj.__supabaseAuthSubscribers.push(handleAuthEvent);
+
+    // Immediately attempt to read the current session and populate state
+    (async () => {
+      try {
+        // Supabase v2: auth.getSession()
+        const sessionResult = await supabase.auth.getSession();
+        const session = (sessionResult as any)?.data?.session ?? null;
+        await handleAuthEvent('INIT', session);
+      } catch (e) {
+        console.error('Failed to get initial supabase session', e);
         setLoading(false);
       }
-    );
+    })();
 
+    // Cleanup: unsubscribe this provider's handler
     return () => {
-      authListener.subscription.unsubscribe();
+      try {
+        globalObj.__supabaseAuthSubscribers = (globalObj.__supabaseAuthSubscribers || []).filter((cb: any) => cb !== handleAuthEvent);
+      } catch (e) {
+        // ignore cleanup errors
+      }
     };
   }, [fetchUserDependentData]);
 
