@@ -154,7 +154,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
                 </div>
             ) : (
                 <div className="px-4 md:px-0 text-gray-500 dark:text-gray-400">
-                    This user has no friends yet.
+                    This list is currently empty.
                 </div>
             )}
         </div>

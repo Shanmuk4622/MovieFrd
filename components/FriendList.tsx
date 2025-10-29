@@ -59,7 +59,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
     }
   };
 
-  const TabButton: React.FC<{ tab: Tab; label: string; count: number, isNotification?: boolean }> = ({ tab, label, count, isNotification = false }) => (
+  const TabButton: React.FC<{ tab: Tab; label: string; count: number }> = ({ tab, label, count }) => (
     <button
       onClick={() => setActiveTab(tab)}
       className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors relative flex items-center ${
@@ -67,14 +67,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
       }`}
     >
       <span>{label}</span>
-      {isNotification && count > 0 && (
-        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-            {count > 9 ? '9+' : count}
-        </span>
-      )}
-      {!isNotification && count > 0 && (
-         <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400 font-normal">({count})</span>
-      )}
+      <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400 font-normal">({count})</span>
     </button>
   );
 
@@ -86,7 +79,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
       </div>
       <div className="flex space-x-2 mb-4">
         <TabButton tab="friends" label="Friends" count={friends.length} />
-        <TabButton tab="incoming" label="Requests" count={incomingRequests.length} isNotification={true} />
+        <TabButton tab="incoming" label="Requests" count={incomingRequests.length} />
         <TabButton tab="pending" label="Sent" count={pendingRequests.length} />
       </div>
 

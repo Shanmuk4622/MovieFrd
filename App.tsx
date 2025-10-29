@@ -126,6 +126,7 @@ const App: React.FC = () => {
       )}
       {selectedProfileId && (
         <UserProfileModal 
+            key={selectedProfileId}
             userId={selectedProfileId}
             onClose={() => setSelectedProfileId(null)}
             currentUserMovieLists={userMovieLists}

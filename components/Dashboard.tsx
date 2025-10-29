@@ -4,7 +4,7 @@ import ActivityCard from './ActivityCard';
 // FIX: UserMovieList is now imported from types.ts
 import { Movie, UserActivity, UserMovieList } from '../types';
 import { fetchMovies } from '../api';
-import { MovieListSkeleton } from './skeletons';
+import { MovieListSkeleton, ActivitySkeleton } from './skeletons';
 
 // Friend activity will remain mocked for now, as it requires user auth and a database.
 const mockActivities: UserActivity[] = [
@@ -94,11 +94,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
       </div>
       <div className="lg:col-span-1">
         <h2 className="text-2xl md:text-3xl font-bold mb-4">Friend Activity</h2>
-        <div className="space-y-4">
-          {mockActivities.map(activity => (
-            <ActivityCard key={activity.id} activity={activity} />
-          ))}
-        </div>
+        {loading ? (
+            <ActivitySkeleton />
+        ) : (
+            <div className="space-y-4">
+              {mockActivities.map(activity => (
+                <ActivityCard key={activity.id} activity={activity} />
+              ))}
+            </div>
+        )}
       </div>
     </div>
   );
