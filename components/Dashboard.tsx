@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
-import { Movie, UserActivity, UserMovieList, Profile } from '../types';
+import { Movie, UserActivity, UserMovieList } from '../types';
 import { fetchMovies, fetchMovieDetails } from '../api';
 import { getFriendActivity } from '../supabaseApi';
 import { MovieListSkeleton, ActivitySkeleton } from './skeletons';
@@ -46,63 +46,60 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
   }, []);
 
   useEffect(() => {
-    // Replaced real data fetching with mock data for demonstration purposes.
-    const loadMockActivity = () => {
-        setLoadingActivity(true);
+    if (!user) return;
 
-        const mockData: UserActivity[] = [
-          {
-            id: 1,
-            userName: 'Rohan',
-            userAvatarUrl: 'https://i.pravatar.cc/100?u=rohan',
-            action: 'added to watchlist',
-            movie: {
-              id: 693134,
-              title: 'Salaar: Part 1 – Ceasefire',
-              posterUrl: 'https://image.tmdb.org/t/p/w500/iPAc1x0l27FEnMk3d2eUaK4a2KI.jpg',
-              rating: 7.8,
-            },
-            timestamp: '2 hours ago',
-          },
-          {
-            id: 2,
-            userName: 'Priya',
-            userAvatarUrl: 'https://i.pravatar.cc/100?u=priya',
-            action: 'watched',
-            movie: {
-              id: 872585,
-              title: 'Oppenheimer',
-              posterUrl: 'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
-              rating: 8.6,
-            },
-            timestamp: '5 hours ago',
-          },
-          {
-            id: 3,
-            userName: 'Amit',
-            userAvatarUrl: 'https://i.pravatar.cc/100?u=amit',
-            action: 'watched',
-            movie: {
-              id: 157336,
-              title: 'Interstellar',
-              posterUrl: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
-              rating: 9.2,
-            },
-            timestamp: '1 day ago',
-          },
-        ];
+    const loadRealActivity = async () => {
+      setLoadingActivity(true);
+      try {
+        const activitiesFromDb = await getFriendActivity(user.id);
         
-        // Simulate a short network delay
-        const timer = setTimeout(() => {
-            setFriendActivity(mockData);
-            setLoadingActivity(false);
-        }, 750);
+        if (!activitiesFromDb || activitiesFromDb.length === 0) {
+          setFriendActivity([]);
+          return;
+        }
 
-        return () => clearTimeout(timer);
+        const movieIds = [...new Set(activitiesFromDb.map(a => a.tmdb_movie_id))];
+        
+        const movieDetailsPromises = movieIds.map(id => fetchMovieDetails(id));
+        const movieDetailsResults = await Promise.all(movieDetailsPromises);
+        
+        const movieDetailsMap = new Map<number, Movie>();
+        movieDetailsResults.forEach(movie => {
+          if (movie) {
+            movieDetailsMap.set(movie.id, movie);
+          }
+        });
+
+        const formattedActivities: UserActivity[] = activitiesFromDb
+          .map(activity => {
+            const movie = movieDetailsMap.get(activity.tmdb_movie_id);
+            if (!movie || !activity.profiles) {
+              return null;
+            }
+
+            return {
+              id: activity.id,
+              userName: activity.profiles.username,
+              userAvatarUrl: activity.profiles.avatar_url || `https://i.pravatar.cc/100?u=${activity.profiles.id}`,
+              action: activity.list_type === 'watched' ? 'watched' : 'added to watchlist',
+              movie: movie,
+              timestamp: formatTimeAgo(activity.created_at),
+            };
+          })
+          .filter((activity): activity is UserActivity => activity !== null);
+
+        setFriendActivity(formattedActivities);
+
+      } catch (error) {
+        console.error("Failed to load friend activity", error);
+        setFriendActivity([]);
+      } finally {
+        setLoadingActivity(false);
+      }
     };
-
-    loadMockActivity();
-  }, []);
+    
+    loadRealActivity();
+  }, [user]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 lg:px-0">
