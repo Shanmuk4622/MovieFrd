@@ -83,39 +83,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user]);
 
   useEffect(() => {
-    const initializeSession = async () => {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        setSession(currentSession);
-        const currentUser = currentSession?.user ?? null;
-        setUser(currentUser);
-        if (currentUser) {
-          await fetchUserDependentData(currentUser);
-        }
-      } catch (error) {
-        console.error("Error fetching session on initial load:", error);
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setUserMovieLists([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeSession();
-
+    // onAuthStateChange is called once with the initial session,
+    // and then every time the auth state changes. This is the single
+    // source of truth for the session and prevents race conditions.
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
       const currentUser = newSession?.user ?? null;
       setUser(currentUser);
+
       if (currentUser) {
-        // Fetch new data, but don't show a full-page loader for auth changes
         await fetchUserDependentData(currentUser);
       } else {
+        // Clear user-specific data on logout
         setProfile(null);
         setUserMovieLists([]);
       }
+
+      // The initial session check is complete, we can stop loading.
+      // This will only matter on the first run.
+      setLoading(false);
     });
 
     return () => {
