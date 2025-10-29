@@ -193,10 +193,10 @@ export const getRoomMessages = async (roomId: number): Promise<ChatMessage[]> =>
   return data as ChatMessage[] || [];
 };
 
-export const sendMessage = async (roomId: number, senderId: string, content: string): Promise<ChatMessage> => {
+export const sendMessage = async (roomId: number, senderId: string, content: string, replyToMessageId?: number | null): Promise<ChatMessage> => {
   const { data, error } = await supabase
     .from('room_messages')
-    .insert({ room_id: roomId, sender_id: senderId, content })
+    .insert({ room_id: roomId, sender_id: senderId, content, reply_to_message_id: replyToMessageId || null })
     .select('*, profiles(*)')
     .single();
   
@@ -330,10 +330,10 @@ export const getDirectMessages = async (userId1: string, userId2: string): Promi
     return data as any[] || [];
 };
 
-export const sendDirectMessage = async (senderId: string, receiverId: string, content: string): Promise<DirectMessage> => {
+export const sendDirectMessage = async (senderId: string, receiverId: string, content: string, replyToMessageId?: number | null): Promise<DirectMessage> => {
     const { data, error } = await supabase
         .from('direct_messages')
-        .insert({ sender_id: senderId, receiver_id: receiverId, content })
+        .insert({ sender_id: senderId, receiver_id: receiverId, content, reply_to_message_id: replyToMessageId || null })
         .select('*, profiles:sender_id(*)')
         .single();
     

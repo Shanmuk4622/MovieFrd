@@ -4,6 +4,7 @@ import { Movie, UserMovieList } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { addMovieToList, removeMovieFromList } from '../supabaseApi';
 import { StarIcon, PlusIcon, CheckIcon, XIcon } from './icons';
+import { fetchMovieDetailsExtended } from '../api';
 
 interface MovieCardProps {
   movie: Movie;
@@ -15,6 +16,9 @@ interface MovieCardProps {
 const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpdate, onSelectMovie }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  
+  const [genres, setGenres] = useState<{ id: number; name: string }[] | null>(null);
+  const [loadingGenres, setLoadingGenres] = useState(false);
 
   const listInfo = useMemo(() => {
     return userMovieLists.find(item => item.tmdb_movie_id === movie.id);
@@ -45,10 +49,27 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
     }
   };
 
+  const handleMouseEnter = async () => {
+    if (!genres && !loadingGenres) {
+      setLoadingGenres(true);
+      try {
+        const movieDetails = await fetchMovieDetailsExtended(movie.id);
+        if (movieDetails) {
+          setGenres(movieDetails.genres);
+        }
+      } catch (error) {
+        console.error("Failed to fetch genres for movie card", error);
+      } finally {
+        setLoadingGenres(false);
+      }
+    }
+  };
+
   return (
     <div 
       className="group relative flex-shrink-0 w-full rounded-lg overflow-hidden shadow-lg transform transition-transform duration-300 hover:scale-105 hover:z-10 cursor-pointer aspect-[2/3]"
       onClick={() => onSelectMovie(movie.id)}
+      onMouseEnter={handleMouseEnter}
     >
       <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
@@ -68,12 +89,27 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
         onClick={(e) => e.stopPropagation()} // Prevent card click when clicking overlay buttons
       >
         <h3 
-          className="font-bold text-base text-center line-clamp-3 mb-3 cursor-pointer hover:underline"
+          className="font-bold text-base text-center line-clamp-3 mb-2 cursor-pointer hover:underline"
           onClick={() => onSelectMovie(movie.id)}
         >
           {movie.title}
         </h3>
-        <div className="space-y-2 w-full">
+        
+        <div className="h-8 flex items-center">
+            {loadingGenres ? (
+                <span className="text-xs text-gray-400 italic">Loading genres...</span>
+            ) : (
+                <div className="flex flex-wrap justify-center gap-1">
+                {genres?.slice(0, 2).map(genre => (
+                    <span key={genre.id} className="bg-white/10 text-gray-300 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                    {genre.name}
+                    </span>
+                ))}
+                </div>
+            )}
+        </div>
+        
+        <div className="space-y-2 w-full mt-1">
             {isInWatched ? (
                 <button
                     onClick={() => handleAction('remove')}

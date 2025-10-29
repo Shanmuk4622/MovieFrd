@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useMemo } from 'react';
 import { User } from '@supabase/supabase-js';
 import { Friendship } from '../types';
@@ -63,15 +60,17 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
   const TabButton: React.FC<{ tab: Tab; label: string; count: number }> = ({ tab, label, count }) => (
     <button
       onClick={() => setActiveTab(tab)}
-      className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors relative flex items-center gap-2 ${
-        activeTab === tab ? 'bg-red-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+      className={`flex-1 px-2 py-1.5 text-sm font-semibold rounded-md transition-all duration-200 ease-in-out relative flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:dark:ring-offset-gray-800 ${
+        activeTab === tab 
+          ? 'bg-white dark:bg-gray-600 shadow-sm text-gray-900 dark:text-white' 
+          : 'text-gray-600 dark:text-gray-300 hover:bg-white/50 dark:hover:bg-gray-600/50'
       }`}
     >
       <span>{label}</span>
-      <span className={`flex items-center justify-center text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 ${
+      <span className={`flex items-center justify-center text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 transition-colors ${
           activeTab === tab 
-            ? 'bg-white text-red-600' 
-            : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
+            ? 'bg-red-600 text-white' 
+            : 'bg-gray-200 dark:bg-gray-500 text-gray-700 dark:text-gray-100'
       }`}>
         {count}
       </span>
@@ -84,7 +83,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
         <UserGroupIcon className="w-6 h-6" />
         <h3 className="text-lg font-bold">Friends</h3>
       </div>
-      <div className="flex space-x-2 mb-4">
+      <div className="flex space-x-1 p-1 bg-gray-100 dark:bg-gray-700/50 rounded-lg mb-4">
         <TabButton tab="friends" label="Friends" count={friends.length} />
         <TabButton tab="incoming" label="Requests" count={incomingRequests.length} />
         <TabButton tab="pending" label="Sent" count={pendingRequests.length} />

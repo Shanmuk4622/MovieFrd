@@ -1,14 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PaperAirplaneIcon } from './icons';
+import { PaperAirplaneIcon, XIcon } from './icons';
+import { ChatMessage, DirectMessage } from '../types';
 
 interface MessageInputProps {
   onSendMessage: (content: string) => void;
   onTyping: (isTyping: boolean) => void;
+  replyToMessage: ChatMessage | DirectMessage | null;
+  onCancelReply: () => void;
+  isAnonymousChat: boolean;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onTyping }) => {
+const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onTyping, replyToMessage, onCancelReply, isAnonymousChat }) => {
   const [content, setContent] = useState('');
   const typingTimeoutRef = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (replyToMessage) {
+      inputRef.current?.focus();
+    }
+  }, [replyToMessage]);
 
   useEffect(() => {
     if (content) {
@@ -46,16 +57,38 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onTyping }) 
       setContent('');
     }
   };
+  
+  const getReplyDisplayName = () => {
+    if (!replyToMessage) return '';
+    if (isAnonymousChat) return 'an anonymous user';
+    return replyToMessage.profiles?.username || 'Unknown User';
+  };
 
   return (
     <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700/50">
+      {replyToMessage && (
+        <div className="bg-gray-100 dark:bg-gray-700/50 p-2 rounded-t-lg flex justify-between items-center text-sm mb-2 animate-fade-in">
+          <div className="min-w-0">
+            <p className="text-gray-500 dark:text-gray-400">
+              Replying to <span className="font-bold text-gray-800 dark:text-gray-200">{getReplyDisplayName()}</span>
+            </p>
+            <p className="text-gray-600 dark:text-gray-300 truncate">
+              {replyToMessage.content}
+            </p>
+          </div>
+          <button onClick={onCancelReply} className="p-1 text-gray-500 hover:text-red-500 flex-shrink-0 ml-2" aria-label="Cancel reply">
+            <XIcon className="w-5 h-5" />
+          </button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="flex items-center space-x-3">
         <input
+          ref={inputRef}
           type="text"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+          className={`flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 ${replyToMessage ? 'rounded-b-lg' : 'rounded-lg'}`}
           autoComplete="off"
         />
         <button

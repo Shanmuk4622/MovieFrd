@@ -14,6 +14,8 @@ interface MessageAreaProps {
   typingUsers: Profile[];
   onSelectProfile: (userId: string) => void;
   onlineUsers: Set<string>;
+  onSetReplyTo: (message: ChatMessage | DirectMessage) => void;
+  messagesById: Map<number, ChatMessage | DirectMessage>;
 }
 
 const adjectives = ["Clever", "Silent", "Brave", "Quick", "Wise", "Witty", "Curious", "Daring", "Gentle", "Keen"];
@@ -77,7 +79,7 @@ const getEphemeralMessage = (conversation: Conversation | null) => {
 };
 
 
-const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile, onlineUsers }) => {
+const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation, isLoading, isSidebarOpen, onToggleSidebar, typingUsers, onSelectProfile, onlineUsers, onSetReplyTo, messagesById }) => {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const aliasMap = useRef<Map<string, string>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +132,10 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
   const conversationDescription = conversation ? (conversation.type === 'room' ? conversation.description : `Your private conversation with ${conversation.username}.`) : 'Please wait';
   const ephemeralMessage = getEphemeralMessage(conversation);
   const isOtherUserOnline = conversation?.type === 'dm' && onlineUsers.has(conversation.id);
+  
+  const handleReplyClick = (message: ChatMessage | DirectMessage) => {
+    onSetReplyTo(message);
+  };
 
   return (
     <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
@@ -186,6 +192,8 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
             const showHeader = !prevMessage ||
                                prevMessage.sender_id !== msg.sender_id ||
                                (new Date(msg.created_at).getTime() - new Date(prevMessage.created_at).getTime()) > 5 * 60 * 1000;
+
+            const repliedToMessage = msg.reply_to_message_id ? messagesById.get(msg.reply_to_message_id) : null;
             
             return (
                 <div 
@@ -228,9 +236,19 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
                                 </div>
                             </div>
                         )}
-                        <div className={`mt-1 p-3 rounded-lg max-w-lg ${isCurrentUser ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>
+                        <button
+                            onClick={() => handleReplyClick(msg)}
+                            aria-label={`Reply to ${getDisplayName(msg)}`}
+                            className={`w-fit text-left mt-1 p-3 rounded-lg max-w-lg transition-colors ${isCurrentUser ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                        >
+                            {repliedToMessage && (
+                                <div className={`border-l-2 pl-2 mb-2 text-xs ${isCurrentUser ? 'border-white/50' : 'border-gray-500/50 dark:border-gray-400/50'}`}>
+                                    <p className="font-bold">{getDisplayName(repliedToMessage)}</p>
+                                    <p className="line-clamp-2 opacity-80">{repliedToMessage.content}</p>
+                                </div>
+                            )}
                             <p className="break-words">{msg.content}</p>
-                        </div>
+                        </button>
                         {isCurrentUser && lastSeenByThemMessageId === msg.id && (
                             <div className="flex justify-end items-center gap-1 mt-1 pr-1">
                                 <CheckDoubleIcon className="w-4 h-4 text-blue-400" />

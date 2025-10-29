@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -35,6 +35,9 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAnonymity, setModalAnonymity] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // --- Reply state ---
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | DirectMessage | null>(null);
 
   // --- Real-time features state ---
   const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
@@ -45,6 +48,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsSidebarOpen(false);
+        setReplyToMessage(null); // Also cancel reply on escape
       }
     };
 
@@ -118,6 +122,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     if (!activeConversation || !user || !profile) return;
 
     setTypingUsers([]); // Clear on conversation change
+    setReplyToMessage(null); // Clear reply on conversation change
     typingTimers.current.forEach(timerId => clearTimeout(timerId));
     typingTimers.current.clear();
 
@@ -228,9 +233,9 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     try {
         let newMessage: ChatMessage | DirectMessage | null = null;
         if (activeConversation.type === 'room') {
-            newMessage = await sendMessage(activeConversation.id, user.id, content.trim());
+            newMessage = await sendMessage(activeConversation.id, user.id, content.trim(), replyToMessage?.id);
         } else {
-            newMessage = await sendDirectMessage(user.id, activeConversation.id, content.trim());
+            newMessage = await sendDirectMessage(user.id, activeConversation.id, content.trim(), replyToMessage?.id);
         }
         
         // FIX: Add the new message to the local state immediately for a responsive UI.
@@ -240,8 +245,10 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         }
     } catch (error) {
       console.error("Failed to send message", error);
+    } finally {
+        setReplyToMessage(null); // Clear reply state after sending
     }
-  }, [user, activeConversation]);
+  }, [user, activeConversation, replyToMessage]);
 
   const handleTyping = useCallback((isTyping: boolean) => {
     if (!channelRef.current || !user || !profile) return;
@@ -263,6 +270,13 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     await fetchInitialData(); // Refreshes rooms
     setActiveConversation({ ...newRoom, type: 'room' });
   };
+  
+  const messagesById = useMemo(() => {
+    return messages.reduce((acc, msg) => {
+        acc.set(msg.id, msg);
+        return acc;
+    }, new Map<number, ChatMessage | DirectMessage>());
+  }, [messages]);
 
   const renderMainContent = () => {
     if (loading) {
@@ -278,8 +292,16 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             typingUsers={[]}
             onSelectProfile={onSelectProfile}
             onlineUsers={onlineUsers}
+            onSetReplyTo={() => {}}
+            messagesById={new Map()}
           />
-          <MessageInput onSendMessage={() => {}} onTyping={() => {}} />
+          <MessageInput 
+            onSendMessage={() => {}} 
+            onTyping={() => {}} 
+            replyToMessage={null}
+            onCancelReply={() => {}}
+            isAnonymousChat={false}
+          />
         </div>
       );
     }
@@ -315,8 +337,16 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
           typingUsers={typingUsers}
           onSelectProfile={onSelectProfile}
           onlineUsers={onlineUsers}
+          onSetReplyTo={setReplyToMessage}
+          messagesById={messagesById}
         />
-        <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />
+        <MessageInput 
+          onSendMessage={handleSendMessage} 
+          onTyping={handleTyping} 
+          replyToMessage={replyToMessage}
+          onCancelReply={() => setReplyToMessage(null)}
+          isAnonymousChat={activeConversation.type === 'room' && activeConversation.is_anonymous}
+        />
       </>
     );
   };
