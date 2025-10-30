@@ -42,11 +42,9 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | DirectMessage | null>(null);
 
-  // --- Real-time features state ---
   const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
   const [profileCache, setProfileCache] = useState<Map<string, Profile>>(new Map());
 
-  // --- Refs ---
   const activeConversationRef = useRef(activeConversation);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const typingTimers = useRef<Map<string, number>>(new Map());
@@ -60,7 +58,8 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     setActiveConversation(conversation);
     setIsSidebarOpen(false);
     
-    const conversationId = conversation.type === 'room' ? `room-${conversation.id}` : conversation.id;
+    // Use the correct ID for unread counts (user ID for DMs, room ID for rooms)
+    const conversationId = conversation.type === 'dm' ? conversation.id : `room-${conversation.id}`;
     setUnreadCounts(prev => {
         if (!prev[conversationId]) return prev;
         const newCounts = { ...prev };
@@ -69,7 +68,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     });
   }, []);
 
-  // --- Effect 1: Fetch initial static data (rooms, friends) ---
+  // Effect 1: Fetch initial static data (rooms, friends)
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -85,7 +84,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
                 .map(f => f.requester_id === user.id ? f.addressee : f.requester);
             setFriends(acceptedFriends);
 
-            // Set initial conversation
             if (initialUser) {
                 const friendToSelect = acceptedFriends.find(f => f.id === initialUser.id);
                 if (friendToSelect) handleSelectConversation({ ...friendToSelect, type: 'dm' });
@@ -100,16 +98,17 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         }
     };
     fetchInitialData();
-  }, [user, initialUser, handleSelectConversation]);
+    // This effect should only run once when the user logs in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-  // --- Effect 2: Setup all real-time message subscriptions ---
+  // Effect 2: Setup all real-time message subscriptions. This is the critical fix.
   useEffect(() => {
-    if (!user) return;
+    if (!user || rooms.length === 0) return;
 
+    // Helper to get profiles and cache them to avoid redundant fetches
     const getSenderProfile = async (senderId: string) => {
-        if (profileCache.has(senderId)) {
-            return profileCache.get(senderId);
-        }
+        if (profileCache.has(senderId)) return profileCache.get(senderId);
         const senderProfile = await getProfile(senderId);
         if (senderProfile) {
             setProfileCache(prev => new Map(prev).set(senderId, senderProfile));
@@ -119,40 +118,46 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     
     const handleRealtimeInsert = async (payload: any) => {
         const newMessage = payload.new;
+        if (newMessage.sender_id === user.id) return; // Ignore our own messages
+
         const currentConv = activeConversationRef.current;
-        
         let isForActiveConv = false;
         let convIdForUnread: string | null = null;
         
         if (newMessage.receiver_id) { // Direct Message
-            const otherUserId = newMessage.sender_id === user.id ? newMessage.receiver_id : newMessage.sender_id;
-            convIdForUnread = otherUserId;
-            isForActiveConv = currentConv?.type === 'dm' && otherUserId === currentConv.id;
+            convIdForUnread = newMessage.sender_id;
+            isForActiveConv = currentConv?.type === 'dm' && newMessage.sender_id === currentConv.id;
         } else if (newMessage.room_id) { // Room Message
             convIdForUnread = `room-${newMessage.room_id}`;
             isForActiveConv = currentConv?.type === 'room' && newMessage.room_id === currentConv.id;
         }
 
-        if (isForActiveConv) {
-            const senderProfile = await getSenderProfile(newMessage.sender_id);
-            newMessage.profiles = senderProfile;
-            setMessages(prev => [...prev, newMessage]);
+        const senderProfile = await getSenderProfile(newMessage.sender_id);
+        newMessage.profiles = senderProfile;
 
-            if (currentConv?.type === 'dm' && newMessage.sender_id !== user.id) {
-                markDirectMessagesAsSeen(currentConv.id, user.id);
+        if (isForActiveConv) {
+            setMessages(prev => [...prev, newMessage]);
+            if (currentConv?.type === 'dm') {
+                await markDirectMessagesAsSeen(currentConv.id, user.id);
                 refreshUnreadDms();
             }
-        } else if (convIdForUnread && newMessage.sender_id !== user.id) {
+        } else if (convIdForUnread) {
             setUnreadCounts(prev => ({ ...prev, [convIdForUnread!]: (prev[convIdForUnread!] || 0) + 1 }));
-            if (newMessage.receiver_id) refreshUnreadDms();
+            if (newMessage.receiver_id) refreshUnreadDms(); // Update global DM icon
         }
     };
 
+    // Unsubscribe from any existing channels before creating new ones
+    subscriptionsRef.current.forEach(sub => supabase.removeChannel(sub).catch(() => {}));
+    subscriptionsRef.current = [];
+
+    // Subscribe to all DMs for the user
     const dmSub = supabase.channel(`dms-for-${user.id}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeInsert)
         .subscribe();
     subscriptionsRef.current.push(dmSub);
 
+    // Subscribe to all rooms
     rooms.forEach(room => {
         const roomSub = supabase.channel(`room-${room.id}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${room.id}` }, handleRealtimeInsert)
@@ -161,13 +166,14 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     });
 
     return () => {
-        subscriptionsRef.current.forEach(sub => supabase.removeChannel(sub));
+        subscriptionsRef.current.forEach(sub => supabase.removeChannel(sub).catch(() => {}));
         subscriptionsRef.current = [];
     };
-  }, [user, rooms, profileCache, refreshUnreadDms]);
+    // This effect depends ONLY on user and the static list of rooms.
+    // It will not re-run unnecessarily, creating stable subscriptions.
+  }, [user, rooms]);
 
-
-  // --- Effect 3: Fetch message history for active conversation ---
+  // Effect 3: Fetch message history for active conversation
   useEffect(() => {
     if (!activeConversation || !user) return;
     setReplyToMessage(null);
@@ -191,10 +197,10 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     fetchMessageHistory();
   }, [activeConversation, user, refreshUnreadDms]);
 
-  // --- Effect 4: Real-time typing indicators ---
+  // Effect 4: Real-time typing indicators
   useEffect(() => {
     if (typingChannelRef.current) {
-        supabase.removeChannel(typingChannelRef.current);
+        supabase.removeChannel(typingChannelRef.current).catch(() => {});
         typingChannelRef.current = null;
     }
     typingTimers.current.forEach(timerId => clearTimeout(timerId));
@@ -219,12 +225,11 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             }, 3000);
             typingTimers.current.set(payload.userId, timerId);
         }).subscribe();
-
         typingChannelRef.current = channel;
     }
 
     return () => {
-        if (typingChannelRef.current) supabase.removeChannel(typingChannelRef.current);
+        if (typingChannelRef.current) supabase.removeChannel(typingChannelRef.current).catch(()=>{});
         typingTimers.current.forEach(timerId => clearTimeout(timerId));
     };
   }, [activeConversation, user]);
@@ -270,7 +275,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   
   const handleCreateRoom = async (name: string, description: string | null) => {
     const newRoom = await createChatRoom(name, description, modalAnonymity);
-    setRooms(prev => [...prev, newRoom]); // Optimistically add room
+    setRooms(prev => [...prev, newRoom]);
     setActiveConversation({ ...newRoom, type: 'room' });
   };
   

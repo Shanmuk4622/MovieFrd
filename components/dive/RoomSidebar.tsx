@@ -48,6 +48,7 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
   };
   
   const FriendLink: React.FC<{ friend: Profile }> = ({ friend }) => {
+    // FIX: Use the friend's ID as the key to look up unread counts for DMs.
     const unreadCount = unreadCounts[friend.id] || 0;
     const isOnline = onlineUsers.has(friend.id);
     return (
@@ -60,9 +61,13 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
         }`}
       >
         <div className="relative flex-shrink-0">
-            <UserIcon className="w-4 h-4" />
+            {friend.avatar_url ? (
+                <img src={friend.avatar_url} alt={friend.username} className="w-5 h-5 rounded-full object-cover"/>
+            ) : (
+                <UserIcon className="w-4 h-4" />
+            )}
             {isOnline && (
-                <div className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-green-500 rounded-full ring-1 ring-white dark:ring-gray-800"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full ring-2 ring-white dark:ring-gray-800"></div>
             )}
         </div>
         <span className="flex-1 truncate">{friend.username}</span>
