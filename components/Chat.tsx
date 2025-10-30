@@ -47,6 +47,13 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const typingTimers = useRef<Map<string, number>>(new Map());
+  
+  // --- Ref for stale closure prevention in subscriptions ---
+  const activeConversationRef = useRef(activeConversation);
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
+
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -154,19 +161,20 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
     const handleRealtimeMessage = async (payload: any) => {
       const { eventType, new: newMessage, table } = payload;
+      const currentActiveConversation = activeConversationRef.current;
 
       const isDm = table === 'direct_messages';
       const isRoomMessage = table === 'room_messages';
 
       let isForActiveConversation = false;
-      if (activeConversation?.type === 'dm' && isDm) {
-        const otherUserId = activeConversation.id;
+      if (currentActiveConversation?.type === 'dm' && isDm) {
+        const otherUserId = currentActiveConversation.id;
         if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) ||
             (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
           isForActiveConversation = true;
         }
-      } else if (activeConversation?.type === 'room' && isRoomMessage) {
-        if (newMessage.room_id === activeConversation.id) {
+      } else if (currentActiveConversation?.type === 'room' && isRoomMessage) {
+        if (newMessage.room_id === currentActiveConversation.id) {
           isForActiveConversation = true;
         }
       }
@@ -187,8 +195,8 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
         if (eventType === 'INSERT') {
           setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
-          if (activeConversation?.type === 'dm' && newMessage.sender_id === activeConversation.id) {
-            await markDirectMessagesAsSeen(activeConversation.id, user.id);
+          if (currentActiveConversation?.type === 'dm' && newMessage.sender_id === currentActiveConversation.id) {
+            await markDirectMessagesAsSeen(currentActiveConversation.id, user.id);
             refreshUnreadDms();
           }
         }
@@ -202,10 +210,9 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
     const allMessagesSubscription = subscribeToAllDirectMessagesForUser(user.id, handleRealtimeMessage);
 
-    let roomSubscription: RealtimeChannel | null = null;
-    if (activeConversation?.type === 'room') {
-      roomSubscription = subscribeToRoomMessages(activeConversation.id, handleRealtimeMessage);
-    }
+    const roomSubscriptions = rooms.map(room => 
+        subscribeToRoomMessages(room.id, handleRealtimeMessage)
+    );
 
     const handleTypingEvent = (payload: { userId: string, username: string }) => {
       if (payload.userId !== user.id) {
@@ -234,21 +241,21 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
       setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
     });
 
-    if (roomSubscription) {
-      roomSubscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
-      roomSubscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
-        if (typingTimers.current.has(payload.userId)) {
-          clearTimeout(typingTimers.current.get(payload.userId)!);
-          typingTimers.current.delete(payload.userId);
-        }
-        setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-      });
-    }
+    roomSubscriptions.forEach(subscription => {
+        subscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
+        subscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
+          if (typingTimers.current.has(payload.userId)) {
+            clearTimeout(typingTimers.current.get(payload.userId)!);
+            typingTimers.current.delete(payload.userId);
+          }
+          setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+        });
+    });
 
     return () => {
       try {
         if (allMessagesSubscription) supabase.removeChannel(allMessagesSubscription);
-        if (roomSubscription) supabase.removeChannel(roomSubscription);
+        roomSubscriptions.forEach(sub => supabase.removeChannel(sub));
       } catch (err) {
         // ignore
       }
@@ -256,7 +263,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
       typingTimers.current.clear();
       setTypingUsers([]);
     };
-  }, [activeConversation, user, profile, profileCache, refreshUnreadDms]);
+  }, [rooms, user, profile, profileCache, refreshUnreadDms]);
 
 
   const handleSendMessage = useCallback(async (content: string) => {
