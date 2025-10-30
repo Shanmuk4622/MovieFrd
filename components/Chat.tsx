@@ -153,94 +153,108 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     if (!user || !profile) return;
 
     const handleRealtimeMessage = async (payload: any) => {
-        const { eventType, new: newMessage, table } = payload;
-        
-        const isDm = table === 'direct_messages';
-        const isRoomMessage = table === 'room_messages';
+      const { eventType, new: newMessage, table } = payload;
 
-        let isForActiveConversation = false;
-        if (activeConversation?.type === 'dm' && isDm) {
-            const otherUserId = activeConversation.id;
-            if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) || 
-                (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
-                isForActiveConversation = true;
-            }
-        } else if (activeConversation?.type === 'room' && isRoomMessage) {
-            if (newMessage.room_id === activeConversation.id) {
-                isForActiveConversation = true;
-            }
+      const isDm = table === 'direct_messages';
+      const isRoomMessage = table === 'room_messages';
+
+      let isForActiveConversation = false;
+      if (activeConversation?.type === 'dm' && isDm) {
+        const otherUserId = activeConversation.id;
+        if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) ||
+            (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
+          isForActiveConversation = true;
         }
-        
-        if (isForActiveConversation) {
-            if (newMessage.sender_id) {
-                const senderIdStr = String(newMessage.sender_id);
-                if (!profileCache.has(senderIdStr)) {
-                    const senderProfile = await getProfile(senderIdStr);
-                    if (senderProfile) {
-                        setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
-                        newMessage.profiles = senderProfile;
-                    }
-                } else {
-                    newMessage.profiles = profileCache.get(senderIdStr) || null;
-                }
-            }
+      } else if (activeConversation?.type === 'room' && isRoomMessage) {
+        if (newMessage.room_id === activeConversation.id) {
+          isForActiveConversation = true;
+        }
+      }
 
-            if (eventType === 'INSERT') {
-                setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
-                if (activeConversation?.type === 'dm' && newMessage.sender_id === activeConversation.id) {
-                   await markDirectMessagesAsSeen(activeConversation.id, user.id);
-                   refreshUnreadDms();
-                }
+      if (isForActiveConversation) {
+        if (newMessage.sender_id) {
+          const senderIdStr = String(newMessage.sender_id);
+          if (!profileCache.has(senderIdStr)) {
+            const senderProfile = await getProfile(senderIdStr);
+            if (senderProfile) {
+              setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
+              newMessage.profiles = senderProfile;
             }
-            if (eventType === 'UPDATE') {
-                setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
-            }
-        } else if (eventType === 'INSERT' && isDm && newMessage.receiver_id === user.id) {
+          } else {
+            newMessage.profiles = profileCache.get(senderIdStr) || null;
+          }
+        }
+
+        if (eventType === 'INSERT') {
+          setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
+          if (activeConversation?.type === 'dm' && newMessage.sender_id === activeConversation.id) {
+            await markDirectMessagesAsSeen(activeConversation.id, user.id);
             refreshUnreadDms();
+          }
         }
+        if (eventType === 'UPDATE') {
+          setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
+        }
+      } else if (eventType === 'INSERT' && isDm && newMessage.receiver_id === user.id) {
+        refreshUnreadDms();
+      }
     };
 
     const allMessagesSubscription = subscribeToAllDirectMessagesForUser(user.id, handleRealtimeMessage);
-    
+
     let roomSubscription: RealtimeChannel | null = null;
     if (activeConversation?.type === 'room') {
-        roomSubscription = subscribeToRoomMessages(activeConversation.id, handleRealtimeMessage);
+      roomSubscription = subscribeToRoomMessages(activeConversation.id, handleRealtimeMessage);
     }
 
     const handleTypingEvent = (payload: { userId: string, username: string }) => {
-        if (payload.userId !== user.id) {
-            if (typingTimers.current.has(payload.userId)) clearTimeout(typingTimers.current.get(payload.userId)!);
-            setTypingUsers(prev => prev.find(u => u.id === payload.userId) ? prev : [...prev, { id: payload.userId, username: payload.username, avatar_url: null }]);
-            const timerId = window.setTimeout(() => {
-                setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-                typingTimers.current.delete(payload.userId);
-            }, 3000);
-            typingTimers.current.set(payload.userId, timerId);
+      if (payload.userId !== user.id) {
+        if (typingTimers.current.has(payload.userId)) {
+          clearTimeout(typingTimers.current.get(payload.userId)!);
         }
-    };
-    const handleStopTypingEvent = (payload: { userId: string }) => {
-        if (typingTimers.current.has(payload.userId)) clearTimeout(typingTimers.current.get(payload.userId)!);
-        typingTimers.current.delete(payload.userId);
-        setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+        setTypingUsers(prev => {
+          if (prev.find(u => u.id === payload.userId)) return prev;
+          return [...prev, { id: payload.userId, username: payload.username, avatar_url: null }];
+        });
+        const timerId = window.setTimeout(() => {
+          setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+          typingTimers.current.delete(payload.userId);
+        }, 3000);
+        typingTimers.current.set(payload.userId, timerId);
+      }
     };
 
-    if (activeConversation) {
-        const channelName = activeConversation.type === 'room' ? `room-${activeConversation.id}` : `dm-${[user.id, activeConversation.id].sort().join('-')}`;
-        const channel = supabase.channel(channelName);
-        channel
-            .on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload))
-            .on('broadcast', { event: 'stopped-typing' }, ({ payload }) => handleStopTypingEvent(payload))
-            .subscribe();
-        typingChannelRef.current = channel;
+    // Listen for broadcast typing events on the subscriptions
+    allMessagesSubscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
+    allMessagesSubscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
+      if (typingTimers.current.has(payload.userId)) {
+        clearTimeout(typingTimers.current.get(payload.userId)!);
+        typingTimers.current.delete(payload.userId);
+      }
+      setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+    });
+
+    if (roomSubscription) {
+      roomSubscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
+      roomSubscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
+        if (typingTimers.current.has(payload.userId)) {
+          clearTimeout(typingTimers.current.get(payload.userId)!);
+          typingTimers.current.delete(payload.userId);
+        }
+        setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+      });
     }
 
     return () => {
-      supabase.removeChannel(allMessagesSubscription);
-      if (roomSubscription) supabase.removeChannel(roomSubscription);
-      if (typingChannelRef.current) {
-        supabase.removeChannel(typingChannelRef.current);
-        typingChannelRef.current = null;
+      try {
+        if (allMessagesSubscription) supabase.removeChannel(allMessagesSubscription);
+        if (roomSubscription) supabase.removeChannel(roomSubscription);
+      } catch (err) {
+        // ignore
       }
+      typingTimers.current.forEach(tid => clearTimeout(tid));
+      typingTimers.current.clear();
+      setTypingUsers([]);
     };
   }, [activeConversation, user, profile, profileCache, refreshUnreadDms]);
 
@@ -379,7 +393,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   return (
     <>
-      <div className="flex h-full bg-white dark:bg-gray-800 overflow-hidden relative">
+      <div className="flex h-[calc(100vh-64px)] bg-white dark:bg-gray-800 overflow-hidden relative">
         <RoomSidebar 
             rooms={rooms} 
             friends={friends}
@@ -392,7 +406,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             setIsOpen={setIsSidebarOpen}
             isLoading={loading}
         />
-        <div className={`flex flex-col flex-1 min-w-0 transition-transform duration-300 ease-in-out ${activeConversation ? '' : 'hidden lg:flex'}`}>
+        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden transition-transform duration-300 ease-in-out ${activeConversation ? '' : 'hidden lg:flex'}`}>
           {renderMainContent()}
         </div>
       </div>

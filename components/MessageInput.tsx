@@ -65,7 +65,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onTyping, re
   };
 
   return (
-    <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700/50">
+    <div className="sticky bottom-0 z-30 p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700/50 flex-shrink-0">
       {replyToMessage && (
         <div className="bg-gray-100 dark:bg-gray-700/50 p-2 rounded-t-lg flex justify-between items-center text-sm mb-2 animate-fade-in">
           <div className="min-w-0">

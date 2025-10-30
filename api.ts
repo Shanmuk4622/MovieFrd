@@ -15,15 +15,18 @@ const movieDetailsExtendedCache = new Map<number, MovieDetail>();
 
 interface TmdbMovie {
   id: number;
-  title: string;
-  poster_path: string;
+  title?: string;
+  name?: string;
+  poster_path: string | null;
   vote_average: number;
-  release_date: string;
+  release_date?: string;
+  first_air_date?: string;
   popularity: number;
 }
 
 interface TmdbMovieDetail extends TmdbMovie {
     overview: string;
+    title: string;
     release_date: string;
     genres: { id: number; name: string }[];
 }
@@ -49,10 +52,10 @@ interface TmdbVideos {
 
 const mapTmdbMovieToMovie = (tmdbMovie: TmdbMovie): Movie => ({
   id: tmdbMovie.id,
-  title: tmdbMovie.title,
+  title: tmdbMovie.title || tmdbMovie.name || 'Untitled',
   posterUrl: tmdbMovie.poster_path ? `${IMAGE_BASE_URL}${tmdbMovie.poster_path}`: 'https://via.placeholder.com/500x750.png?text=No+Image',
   rating: tmdbMovie.vote_average,
-  releaseDate: tmdbMovie.release_date,
+  releaseDate: tmdbMovie.release_date || tmdbMovie.first_air_date,
   popularity: tmdbMovie.popularity,
 });
 

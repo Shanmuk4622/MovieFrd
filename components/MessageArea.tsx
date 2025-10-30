@@ -128,7 +128,7 @@ const MessageArea: React.FC<MessageAreaProps> = ({ user, messages, conversation,
   }, [conversation]);
 
   return (
-    <div className="flex-1 px-4 pt-2 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col">
+    <div className="flex-1 px-4 pt-2 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 relative flex flex-col pb-24">
        {isLoading ? (
         <div className="absolute inset-0 bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-center z-20">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div>
