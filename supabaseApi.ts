@@ -274,6 +274,21 @@ export const getFriendships = async (userId: string): Promise<Friendship[]> => {
     return data as any[] || [];
 };
 
+// Fetches friend recommendations using a database function.
+// The user MUST add the `get_friend_recommendations` function to their Supabase project.
+export const getFriendRecommendations = async (userId: string): Promise<Profile[]> => {
+    const { data, error } = await supabase.rpc('get_friend_recommendations', {
+        current_user_id: userId,
+        recommendation_limit: 10
+    });
+
+    if (error) {
+        console.error("Error fetching friend recommendations via RPC. Did you add the SQL function to your Supabase project?", error);
+        return [];
+    }
+    return data || [];
+};
+
 export const sendFriendRequest = async (requesterId: string, addresseeId: string) => {
     const { data, error } = await supabase
         .from('friendships')

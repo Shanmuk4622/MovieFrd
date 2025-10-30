@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-// import { GoogleGenAI, Type } from "@google/genai";
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { GoogleGenAI, Type } from "@google/genai";
 import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
 import { Movie, UserActivity, UserMovieList } from '../types';
@@ -8,7 +8,8 @@ import { getFriendActivity } from '../supabaseApi';
 import { MovieListSkeleton, ActivitySkeleton } from './skeletons';
 import { useAuth } from '../contexts/AuthContext';
 import { formatTimeAgo } from '../utils';
-// import { SparklesIcon } from './icons';
+import { SparklesIcon } from './icons';
+import SortControls, { SortKey } from './SortControls';
 
 interface DashboardProps {
   userMovieLists: UserMovieList[];
@@ -17,7 +18,6 @@ interface DashboardProps {
   onSelectProfile: (userId: string) => void;
 }
 
-/*
 const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onListUpdate' | 'onSelectMovie'>> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,8 +54,8 @@ const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onLis
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
       
-      const watchedTitles = watchedMovies.map(m => m.title).join(', ');
-      const prompt = `Based on the fact that I've watched and enjoyed these movies: ${watchedTitles}. Please recommend 5 other movies I might like. Do not recommend any of the movies I've already watched. Provide the movie title and the year of release.`;
+      const watchedTitles = watchedMovies.map(m => `"${m.title}"`).join(', ');
+      const prompt = `Based on a user enjoying these movies: ${watchedTitles}. Recommend 10 other movies they might like. Do not recommend any of the movies from the provided list. For each movie, provide its title and original release year. Your response must strictly follow the provided JSON schema.`;
       
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -95,10 +95,18 @@ const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onLis
           const resultsForTitle = searchResultsArrays[index];
           if (!resultsForTitle || resultsForTitle.length === 0) return null;
           
+          // Prioritize movies that match the year provided by the AI
           const perfectMatch = resultsForTitle.find(movie => movie.releaseDate && new Date(movie.releaseDate).getFullYear() === rec.year);
           return perfectMatch || resultsForTitle[0];
-      }).filter((m): m is Movie => m !== null);
+      })
+      .filter((m): m is Movie => m !== null)
+      // Remove potential duplicates after fetching
+      .filter((movie, index, self) => index === self.findIndex((m) => m.id === movie.id))
+      .slice(0, 7); // Show up to 7 recommendations
       
+      if (finalRecommendations.length === 0) {
+          setError("The AI couldn't find any suitable recommendations. Try watching a few more diverse movies!");
+      }
       setRecommendations(finalRecommendations);
 
     } catch (err: any) {
@@ -116,15 +124,14 @@ const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onLis
     }
     if (error) {
         return (
-            <div className="text-center text-yellow-500 dark:text-yellow-400 p-6 bg-yellow-500/10 rounded-lg">
-                <p>{error}</p>
+            <div className="text-center text-yellow-600 dark:text-yellow-400 p-6 bg-yellow-500/10 rounded-lg">
+                <p className="font-semibold">{error}</p>
             </div>
         );
     }
     if (recommendations.length > 0) {
         return (
              <MovieList 
-                title=""
                 movies={recommendations} 
                 userMovieLists={userMovieLists}
                 onListUpdate={onListUpdate}
@@ -161,6 +168,7 @@ const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onLis
         {!hasFetched && (
              <div className="text-center text-gray-500 dark:text-gray-400 p-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
                 <p>Click the button to get movie recommendations based on your watched list!</p>
+                <p className="text-xs mt-1">(You need to have at least 3 movies in your 'Watched' list)</p>
             </div>
         )}
         
@@ -168,7 +176,6 @@ const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onLis
     </section>
   );
 };
-*/
 
 const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
   const { user } = useAuth();
@@ -178,6 +185,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
   const [friendActivity, setFriendActivity] = useState<UserActivity[]>([]);
   const [loadingMovies, setLoadingMovies] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(true);
+
+  const [popularSort, setPopularSort] = useState<SortKey>('default');
+  const [trendingSort, setTrendingSort] = useState<SortKey>('default');
 
   useEffect(() => {
     const loadMovies = async () => {
@@ -258,16 +268,42 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
     loadRealActivity();
   }, [user]);
 
+  const sortedPopularMovies = useMemo(() => {
+    const sorted = [...popularMovies];
+    if (popularSort === 'release_date') {
+      sorted.sort((a, b) => {
+        const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
+        const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
+        return dateB - dateA;
+      });
+    } else if (popularSort === 'popularity') {
+      sorted.sort((a, b) => b.popularity - a.popularity);
+    }
+    return sorted;
+  }, [popularMovies, popularSort]);
+
+  const sortedTrendingMovies = useMemo(() => {
+    const sorted = [...trendingMovies];
+    if (trendingSort === 'release_date') {
+      sorted.sort((a, b) => {
+        const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
+        const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
+        return dateB - dateA;
+      });
+    } else if (trendingSort === 'popularity') {
+      sorted.sort((a, b) => b.popularity - a.popularity);
+    }
+    return sorted;
+  }, [trendingMovies, trendingSort]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 lg:px-0">
       <div className="lg:col-span-2">
-        {/*
         <GeminiRecommender
             userMovieLists={userMovieLists}
             onListUpdate={onListUpdate}
             onSelectMovie={onSelectMovie}
         />
-        */}
         {loadingMovies ? (
             <>
                 <MovieListSkeleton />
@@ -276,20 +312,28 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
             </>
         ) : (
             <>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 px-4 md:px-0 gap-2">
+                  <h2 className="text-2xl md:text-3xl font-bold">Popular on TMDB</h2>
+                  <SortControls currentSort={popularSort} onSortChange={setPopularSort} />
+                </div>
                 <MovieList 
-                  title="Popular on TMDB" 
-                  movies={popularMovies} 
+                  movies={sortedPopularMovies} 
                   userMovieLists={userMovieLists}
                   onListUpdate={onListUpdate}
                   onSelectMovie={onSelectMovie}
                 />
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 px-4 md:px-0 mt-8 gap-2">
+                  <h2 className="text-2xl md:text-3xl font-bold">Trending at VITAP</h2>
+                  <SortControls currentSort={trendingSort} onSortChange={setTrendingSort} />
+                </div>
                 <MovieList 
-                  title="Trending at VITAP" 
-                  movies={trendingMovies} 
+                  movies={sortedTrendingMovies} 
                   userMovieLists={userMovieLists}
                   onListUpdate={onListUpdate}
                   onSelectMovie={onSelectMovie}
                 />
+
                 <MovieList 
                   title="Explore Upcoming Movies" 
                   movies={upcomingMovies} 

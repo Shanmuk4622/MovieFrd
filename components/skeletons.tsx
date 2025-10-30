@@ -27,6 +27,21 @@ export const FriendListSkeleton: React.FC = () => (
     </div>
 );
 
+export const RecommendationSkeleton: React.FC = () => (
+    <div className="space-y-2 animate-pulse">
+        {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md">
+                <div className="flex items-center space-x-2 flex-1">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+                </div>
+                <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded-full"></div>
+            </div>
+        ))}
+    </div>
+);
+
+
 export const ActivitySkeleton: React.FC = () => (
     <div className="space-y-4 animate-pulse">
         {[...Array(5)].map((_, i) => (

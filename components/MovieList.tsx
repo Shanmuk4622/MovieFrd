@@ -4,7 +4,7 @@ import { Movie, UserMovieList } from '../types';
 import MovieCard from './MovieCard';
 
 interface MovieListProps {
-  title: string;
+  title?: string;
   movies: Movie[];
   userMovieLists: UserMovieList[];
   onListUpdate: (message: string) => void;
@@ -15,7 +15,7 @@ const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, on
   if (movies.length === 0) {
     return (
       <section className="mb-12">
-        <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>
+        {title && <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>}
         <div className="px-4 md:px-0 text-gray-500 dark:text-gray-400">
           This list is currently empty.
         </div>
@@ -25,7 +25,7 @@ const MovieList: React.FC<MovieListProps> = ({ title, movies, userMovieLists, on
 
   return (
     <section className="mb-12">
-      <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>
+      {title && <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{title}</h2>}
       <div className="flex space-x-4 overflow-x-auto overflow-y-hidden pb-4 pl-4 md:pl-0">
         {movies.map(movie => (
           <div key={movie.id} className="w-40 md:w-48 flex-shrink-0">
