@@ -48,7 +48,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const activeConversationRef = useRef(activeConversation);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const typingTimers = useRef<Map<string, number>>(new Map());
-  const subscriptionsRef = useRef<RealtimeChannel[]>([]);
+  const subscriptions = useRef<Map<string, RealtimeChannel>>(new Map());
 
   useEffect(() => {
     activeConversationRef.current = activeConversation;
@@ -58,7 +58,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     setActiveConversation(conversation);
     setIsSidebarOpen(false);
     
-    // Use the correct ID for unread counts (user ID for DMs, room ID for rooms)
     const conversationId = conversation.type === 'dm' ? conversation.id : `room-${conversation.id}`;
     setUnreadCounts(prev => {
         if (!prev[conversationId]) return prev;
@@ -98,15 +97,16 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         }
     };
     fetchInitialData();
-    // This effect should only run once when the user logs in.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, initialUser, handleSelectConversation]);
 
-  // Effect 2: Setup all real-time message subscriptions. This is the critical fix.
+  // Effect 2: Setup all real-time message subscriptions robustly.
   useEffect(() => {
-    if (!user || rooms.length === 0) return;
+    if (!user) {
+        subscriptions.current.forEach((channel) => supabase.removeChannel(channel));
+        subscriptions.current.clear();
+        return;
+    }
 
-    // Helper to get profiles and cache them to avoid redundant fetches
     const getSenderProfile = async (senderId: string) => {
         if (profileCache.has(senderId)) return profileCache.get(senderId);
         const senderProfile = await getProfile(senderId);
@@ -118,16 +118,16 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     
     const handleRealtimeInsert = async (payload: any) => {
         const newMessage = payload.new;
-        if (newMessage.sender_id === user.id) return; // Ignore our own messages
+        if (newMessage.sender_id === user.id) return;
 
         const currentConv = activeConversationRef.current;
         let isForActiveConv = false;
         let convIdForUnread: string | null = null;
         
-        if (newMessage.receiver_id) { // Direct Message
+        if (newMessage.receiver_id) { // DM
             convIdForUnread = newMessage.sender_id;
             isForActiveConv = currentConv?.type === 'dm' && newMessage.sender_id === currentConv.id;
-        } else if (newMessage.room_id) { // Room Message
+        } else { // Room Message
             convIdForUnread = `room-${newMessage.room_id}`;
             isForActiveConv = currentConv?.type === 'room' && newMessage.room_id === currentConv.id;
         }
@@ -143,35 +143,52 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             }
         } else if (convIdForUnread) {
             setUnreadCounts(prev => ({ ...prev, [convIdForUnread!]: (prev[convIdForUnread!] || 0) + 1 }));
-            if (newMessage.receiver_id) refreshUnreadDms(); // Update global DM icon
+            if (newMessage.receiver_id) refreshUnreadDms();
         }
     };
 
-    // Unsubscribe from any existing channels before creating new ones
-    subscriptionsRef.current.forEach(sub => supabase.removeChannel(sub).catch(() => {}));
-    subscriptionsRef.current = [];
-
-    // Subscribe to all DMs for the user
-    const dmSub = supabase.channel(`dms-for-${user.id}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeInsert)
-        .subscribe();
-    subscriptionsRef.current.push(dmSub);
-
-    // Subscribe to all rooms
-    rooms.forEach(room => {
-        const roomSub = supabase.channel(`room-${room.id}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${room.id}` }, handleRealtimeInsert)
+    // --- Part 1: DM Subscription (stable) ---
+    const dmChannelName = `dms-for-${user.id}`;
+    if (!subscriptions.current.has(dmChannelName)) {
+        const dmSub = supabase.channel(dmChannelName)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeInsert)
             .subscribe();
-        subscriptionsRef.current.push(roomSub);
-    });
-
+        subscriptions.current.set(dmChannelName, dmSub);
+    }
+    
+    // --- Part 2: Room Subscriptions (dynamic & stable) ---
+    // FIX: Explicitly type `k` as `string` to fix TypeScript error.
+    const currentRoomSubs = new Set(Array.from(subscriptions.current.keys()).filter((k: string) => k.startsWith('room-')));
+    const requiredRoomSubs = new Set(rooms.map(r => `room-${r.id}`));
+    
+    for (const room of rooms) {
+        const roomChannelName = `room-${room.id}`;
+        if (!currentRoomSubs.has(roomChannelName)) {
+            const roomSub = supabase.channel(roomChannelName)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${room.id}` }, handleRealtimeInsert)
+                .subscribe();
+            subscriptions.current.set(roomChannelName, roomSub);
+        }
+    }
+    
+    for (const subName of currentRoomSubs) {
+        if (!requiredRoomSubs.has(subName)) {
+            const channelToRemove = subscriptions.current.get(subName);
+            if (channelToRemove) {
+                supabase.removeChannel(channelToRemove);
+                subscriptions.current.delete(subName);
+            }
+        }
+    }
+    
+    // --- Part 3: Cleanup on unmount ---
     return () => {
-        subscriptionsRef.current.forEach(sub => supabase.removeChannel(sub).catch(() => {}));
-        subscriptionsRef.current = [];
+        subscriptions.current.forEach((channel) => {
+            supabase.removeChannel(channel);
+        });
+        subscriptions.current.clear();
     };
-    // This effect depends ONLY on user and the static list of rooms.
-    // It will not re-run unnecessarily, creating stable subscriptions.
-  }, [user, rooms]);
+}, [user, rooms, profileCache, refreshUnreadDms]);
 
   // Effect 3: Fetch message history for active conversation
   useEffect(() => {
