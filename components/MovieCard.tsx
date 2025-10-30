@@ -64,6 +64,12 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
       }
     }
   };
+  
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.src = 'https://via.placeholder.com/500x750.png?text=No+Image';
+    // Prevent infinite loop if the placeholder itself is broken
+    e.currentTarget.onerror = null; 
+  };
 
   return (
     <div 
@@ -71,7 +77,12 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
       onClick={() => onSelectMovie(movie.id)}
       onMouseEnter={handleMouseEnter}
     >
-      <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
+      <img 
+        src={movie.posterUrl} 
+        alt={movie.title} 
+        className="w-full h-full object-cover"
+        onError={handleImageError}
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
       
       {/* Title and Rating */}

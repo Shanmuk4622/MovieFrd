@@ -4,7 +4,7 @@ import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
 import SearchResults from './components/SearchResults';
-import Chat from './components/Chat';
+import Chat from './components/dive/Chat';
 import MovieDetail from './components/MovieDetail';
 import Notification from './components/Notification';
 import UserProfileModal from './components/UserProfileModal';
