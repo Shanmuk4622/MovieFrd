@@ -13,6 +13,7 @@ import MessageInput from './MessageInput';
 import ChatHeader from './ChatHeader';
 import CreateRoomModal from './CreateRoomModal';
 import { supabase } from '../../supabaseClient';
+import { eventBus } from '../../utils/eventBus';
 import { ChatBubbleIcon } from '../icons';
 
 export type Conversation = (ChatRoom & { type: 'room' }) | (Profile & { type: 'dm' });
@@ -99,96 +100,90 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     fetchInitialData();
   }, [user, initialUser, handleSelectConversation]);
 
-  // Effect 2: Setup all real-time message subscriptions robustly.
+  // Effect 2: Listen to centralized realtime events via eventBus (RealtimeProvider)
   useEffect(() => {
-    if (!user) {
-        subscriptions.current.forEach((channel) => supabase.removeChannel(channel));
-        subscriptions.current.clear();
+    if (!user) return;
+
+    const handle = async (ev: Event) => {
+      const payload = (ev as CustomEvent).detail as any;
+      const { table, eventType, new: newMessage } = payload;
+      const currentConv = activeConversationRef.current;
+
+      const isDm = table === 'direct_messages';
+      const isRoomMessage = table === 'room_messages';
+
+      // ignore messages emitted by this user
+      if (!newMessage || newMessage.sender_id === user.id) return;
+
+      // enrich profile if missing
+      if (newMessage.sender_id) {
+        const senderIdStr = String(newMessage.sender_id);
+        if (!profileCache.has(senderIdStr)) {
+          try {
+            const p = await getProfile(senderIdStr);
+            if (p) setProfileCache(prev => new Map(prev).set(p.id, p));
+            newMessage.profiles = p || null;
+          } catch (e) {
+            // ignore
+          }
+        } else {
+          newMessage.profiles = profileCache.get(senderIdStr) || null;
+        }
+      }
+
+      let isForActiveConversation = false;
+      if (currentConv?.type === 'dm' && isDm) {
+        const otherUserId = currentConv.id;
+        if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) ||
+            (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
+          isForActiveConversation = true;
+        }
+      } else if (currentConv?.type === 'room' && isRoomMessage) {
+        if (newMessage.room_id === currentConv.id) isForActiveConversation = true;
+      }
+
+      if (isForActiveConversation) {
+        if (eventType === 'INSERT') {
+          setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
+          if (currentConv?.type === 'dm' && newMessage.sender_id === currentConv.id) {
+            await markDirectMessagesAsSeen(currentConv.id, user.id);
+            refreshUnreadDms();
+          }
+        } else if (eventType === 'UPDATE') {
+          setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
+        }
         return;
-    }
+      }
 
-    const getSenderProfile = async (senderId: string) => {
-        if (profileCache.has(senderId)) return profileCache.get(senderId);
-        const senderProfile = await getProfile(senderId);
-        if (senderProfile) {
-            setProfileCache(prev => new Map(prev).set(senderId, senderProfile));
-        }
-        return senderProfile;
-    };
-    
-    const handleRealtimeInsert = async (payload: any) => {
-        const newMessage = payload.new;
-        if (newMessage.sender_id === user.id) return;
-
-        const currentConv = activeConversationRef.current;
-        let isForActiveConv = false;
-        let convIdForUnread: string | null = null;
-        
-        if (newMessage.receiver_id) { // DM
-            convIdForUnread = newMessage.sender_id;
-            isForActiveConv = currentConv?.type === 'dm' && newMessage.sender_id === currentConv.id;
-        } else { // Room Message
-            convIdForUnread = `room-${newMessage.room_id}`;
-            isForActiveConv = currentConv?.type === 'room' && newMessage.room_id === currentConv.id;
-        }
-
-        const senderProfile = await getSenderProfile(newMessage.sender_id);
-        newMessage.profiles = senderProfile;
-
-        if (isForActiveConv) {
-            setMessages(prev => [...prev, newMessage]);
-            if (currentConv?.type === 'dm') {
-                await markDirectMessagesAsSeen(currentConv.id, user.id);
-                refreshUnreadDms();
+      // Not for active conversation -> update unread counters and optionally notify
+      if (eventType === 'INSERT') {
+        if (isDm && newMessage.receiver_id === user.id) {
+          setUnreadCounts(prev => ({ ...prev, [newMessage.sender_id]: (prev[newMessage.sender_id] || 0) + 1 }));
+          refreshUnreadDms();
+          try {
+            const senderProfile = newMessage.profiles || (await getProfile(String(newMessage.sender_id)));
+            if (senderProfile) {
+              setNotification({
+                message: `${senderProfile.username}: ${String(newMessage.content).slice(0, 80)}`,
+                type: 'dm',
+                senderProfile,
+              });
             }
-        } else if (convIdForUnread) {
-            setUnreadCounts(prev => ({ ...prev, [convIdForUnread!]: (prev[convIdForUnread!] || 0) + 1 }));
-            if (newMessage.receiver_id) refreshUnreadDms();
+          } catch (e) {
+            setNotification({ message: `New message`, type: 'dm' });
+          }
         }
+
+        if (isRoomMessage) {
+          const roomKey = `room-${newMessage.room_id}`;
+          setUnreadCounts(prev => ({ ...prev, [roomKey]: (prev[roomKey] || 0) + 1 }));
+        }
+      }
     };
 
-    // --- Part 1: DM Subscription (stable) ---
-    const dmChannelName = `dms-for-${user.id}`;
-    if (!subscriptions.current.has(dmChannelName)) {
-        const dmSub = supabase.channel(dmChannelName)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${user.id}` }, handleRealtimeInsert)
-            .subscribe();
-        subscriptions.current.set(dmChannelName, dmSub);
-    }
-    
-    // --- Part 2: Room Subscriptions (dynamic & stable) ---
-    // FIX: Explicitly type `k` as `string` to fix TypeScript error.
-    const currentRoomSubs = new Set(Array.from(subscriptions.current.keys()).filter((k: string) => k.startsWith('room-')));
-    const requiredRoomSubs = new Set(rooms.map(r => `room-${r.id}`));
-    
-    for (const room of rooms) {
-        const roomChannelName = `room-${room.id}`;
-        if (!currentRoomSubs.has(roomChannelName)) {
-            const roomSub = supabase.channel(roomChannelName)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${room.id}` }, handleRealtimeInsert)
-                .subscribe();
-            subscriptions.current.set(roomChannelName, roomSub);
-        }
-    }
-    
-    for (const subName of currentRoomSubs) {
-        if (!requiredRoomSubs.has(subName)) {
-            const channelToRemove = subscriptions.current.get(subName);
-            if (channelToRemove) {
-                supabase.removeChannel(channelToRemove);
-                subscriptions.current.delete(subName);
-            }
-        }
-    }
-    
-    // --- Part 3: Cleanup on unmount ---
-    return () => {
-        subscriptions.current.forEach((channel) => {
-            supabase.removeChannel(channel);
-        });
-        subscriptions.current.clear();
-    };
-}, [user, rooms, profileCache, refreshUnreadDms]);
+    eventBus.addEventListener('realtime:message', handle as EventListener);
+    return () => eventBus.removeEventListener('realtime:message', handle as EventListener);
+  }, [user, profileCache, activeConversation, refreshUnreadDms, setNotification]);
 
   // Effect 3: Fetch message history for active conversation
   useEffect(() => {
@@ -213,6 +208,49 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     };
     fetchMessageHistory();
   }, [activeConversation, user, refreshUnreadDms]);
+
+  // Fallback polling to ensure messages appear if realtime messages are missed
+  useEffect(() => {
+    if (!user || !activeConversation) return;
+
+    let cancelled = false;
+    const pollIntervalMs = 2500;
+
+    const pollOnce = async () => {
+      try {
+        if (cancelled) return;
+        if (activeConversation.type === 'room') {
+          const latest = await getRoomMessages(activeConversation.id);
+          setMessages(prev => {
+            const existing = new Set(prev.map(m => m.id));
+            const toAdd = latest.filter(m => !existing.has(m.id));
+            if (toAdd.length === 0) return prev;
+            return [...prev, ...toAdd];
+          });
+        } else {
+          const latest = await getDirectMessages(user.id, activeConversation.id);
+          setMessages(prev => {
+            const existing = new Set(prev.map(m => m.id));
+            const toAdd = latest.filter(m => !existing.has(m.id));
+            if (toAdd.length === 0) return prev;
+            return [...prev, ...toAdd];
+          });
+        }
+      } catch (e) {
+        // don't spam logs for intermittent network issues
+        // eslint-disable-next-line no-console
+        console.debug('Polling error', e);
+      }
+    };
+
+    // initial poll, then interval
+    pollOnce();
+    const intervalId = window.setInterval(pollOnce, pollIntervalMs);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId as unknown as number);
+    };
+  }, [user, activeConversation]);
 
   // Effect 4: Real-time typing indicators
   useEffect(() => {

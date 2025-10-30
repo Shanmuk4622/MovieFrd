@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-    getChatRooms, createChatRoom, getRoomMessages, sendMessage, subscribeToRoomMessages,
-    getFriendships, getDirectMessages, sendDirectMessage, subscribeToAllDirectMessagesForUser, getProfile,
-    markDirectMessagesAsSeen
+import {
+  getChatRooms,
+  createChatRoom,
+  getRoomMessages,
+  sendMessage,
+  getFriendships,
+  getDirectMessages,
+  sendDirectMessage,
+  getProfile,
+  markDirectMessagesAsSeen,
 } from '../supabaseApi';
+import { eventBus } from '../utils/eventBus';
 import { ChatRoom, ChatMessage, Friendship, Profile, DirectMessage } from '../types';
 import RoomSidebar from './RoomSidebar';
 import MessageArea from './MessageArea';
@@ -32,6 +39,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [friends, setFriends] = useState<Profile[]>([]);
   const [messages, setMessages] = useState<(ChatMessage | DirectMessage)[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [profileCache, setProfileCache] = useState<Map<string, Profile>>(new Map());
@@ -155,16 +163,33 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   }, [activeConversation, user, refreshUnreadDms]);
 
 
-  // Effect to manage all real-time subscriptions
+  // Centralized realtime message handler (listens to RealtimeContext via eventBus)
   useEffect(() => {
-    if (!user || !profile) return;
+    if (!user) return;
 
-    const handleRealtimeMessage = async (payload: any) => {
-      const { eventType, new: newMessage, table } = payload;
+    const handle = async (ev: Event) => {
+      const payload = (ev as CustomEvent).detail as any;
+      const { table, eventType, new: newMessage } = payload;
       const currentActiveConversation = activeConversationRef.current;
 
       const isDm = table === 'direct_messages';
       const isRoomMessage = table === 'room_messages';
+
+      // Enrich sender profile if needed
+      if (newMessage?.sender_id) {
+        const senderIdStr = String(newMessage.sender_id);
+        if (!profileCache.has(senderIdStr)) {
+          try {
+            const p = await getProfile(senderIdStr);
+            if (p) setProfileCache(prev => new Map(prev).set(p.id, p));
+            newMessage.profiles = p || null;
+          } catch (e) {
+            // ignore
+          }
+        } else {
+          newMessage.profiles = profileCache.get(senderIdStr) || null;
+        }
+      }
 
       let isForActiveConversation = false;
       if (currentActiveConversation?.type === 'dm' && isDm) {
@@ -179,91 +204,50 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         }
       }
 
+      // New message for active conversation -> append (avoid duplicates)
       if (isForActiveConversation) {
-        if (newMessage.sender_id) {
-          const senderIdStr = String(newMessage.sender_id);
-          if (!profileCache.has(senderIdStr)) {
-            const senderProfile = await getProfile(senderIdStr);
-            if (senderProfile) {
-              setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
-              newMessage.profiles = senderProfile;
-            }
-          } else {
-            newMessage.profiles = profileCache.get(senderIdStr) || null;
-          }
-        }
-
-        if (eventType === 'INSERT') {
+        if (eventType === 'INSERT' || eventType === 'INSERT') {
           setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
           if (currentActiveConversation?.type === 'dm' && newMessage.sender_id === currentActiveConversation.id) {
             await markDirectMessagesAsSeen(currentActiveConversation.id, user.id);
             refreshUnreadDms();
           }
-        }
-        if (eventType === 'UPDATE') {
+        } else if (eventType === 'UPDATE') {
           setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
         }
-      } else if (eventType === 'INSERT' && isDm && newMessage.receiver_id === user.id) {
-        refreshUnreadDms();
+        return;
       }
-    };
 
-    const allMessagesSubscription = subscribeToAllDirectMessagesForUser(user.id, handleRealtimeMessage);
-
-    const roomSubscriptions = rooms.map(room => 
-        subscribeToRoomMessages(room.id, handleRealtimeMessage)
-    );
-
-    const handleTypingEvent = (payload: { userId: string, username: string }) => {
-      if (payload.userId !== user.id) {
-        if (typingTimers.current.has(payload.userId)) {
-          clearTimeout(typingTimers.current.get(payload.userId)!);
-        }
-        setTypingUsers(prev => {
-          if (prev.find(u => u.id === payload.userId)) return prev;
-          return [...prev, { id: payload.userId, username: payload.username, avatar_url: null }];
-        });
-        const timerId = window.setTimeout(() => {
-          setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-          typingTimers.current.delete(payload.userId);
-        }, 3000);
-        typingTimers.current.set(payload.userId, timerId);
-      }
-    };
-
-    // Listen for broadcast typing events on the subscriptions
-    allMessagesSubscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
-    allMessagesSubscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
-      if (typingTimers.current.has(payload.userId)) {
-        clearTimeout(typingTimers.current.get(payload.userId)!);
-        typingTimers.current.delete(payload.userId);
-      }
-      setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-    });
-
-    roomSubscriptions.forEach(subscription => {
-        subscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
-        subscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
-          if (typingTimers.current.has(payload.userId)) {
-            clearTimeout(typingTimers.current.get(payload.userId)!);
-            typingTimers.current.delete(payload.userId);
+      // Not for active conversation -> update unread counters and optionally show notification
+      if (eventType === 'INSERT') {
+        if (isDm && newMessage.receiver_id === user.id) {
+          // increment unread for sender
+          setUnreadCounts(prev => ({ ...prev, [newMessage.sender_id]: (prev[newMessage.sender_id] || 0) + 1 }));
+          refreshUnreadDms();
+          try {
+            const senderProfile = newMessage.profiles || (await getProfile(String(newMessage.sender_id)));
+            if (senderProfile) {
+              setNotification({
+                message: `${senderProfile.username}: ${String(newMessage.content).slice(0, 80)}`,
+                type: 'dm',
+                senderProfile,
+              });
+            }
+          } catch (e) {
+            setNotification({ message: `New message`, type: 'dm' });
           }
-          setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-        });
-    });
+        }
 
-    return () => {
-      try {
-        if (allMessagesSubscription) supabase.removeChannel(allMessagesSubscription);
-        roomSubscriptions.forEach(sub => supabase.removeChannel(sub));
-      } catch (err) {
-        // ignore
+        if (isRoomMessage) {
+          const roomKey = `room-${newMessage.room_id}`;
+          setUnreadCounts(prev => ({ ...prev, [roomKey]: (prev[roomKey] || 0) + 1 }));
+        }
       }
-      typingTimers.current.forEach(tid => clearTimeout(tid));
-      typingTimers.current.clear();
-      setTypingUsers([]);
     };
-  }, [rooms, user, profile, profileCache, refreshUnreadDms]);
+
+    eventBus.addEventListener('realtime:message', handle as EventListener);
+    return () => eventBus.removeEventListener('realtime:message', handle as EventListener);
+  }, [user, profileCache, activeConversation, refreshUnreadDms, setNotification]);
 
 
   const handleSendMessage = useCallback(async (content: string) => {
