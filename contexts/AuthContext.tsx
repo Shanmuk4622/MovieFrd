@@ -176,67 +176,52 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     if (!user) return;
 
-    // 1. Request browser notification permission if not already granted/denied
+    // 1. Request notification permission
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
 
-    // 2. Fetch initial unread DM count on load
+    // 2. Fetch initial unread DM count
     refreshUnreadDms();
 
-    // 3. Set up a unique, stable channel for this user's DM notifications
-    const channelName = `dm-notifications-for-${user.id}`;
+    // 3. Set up real-time listener for new DMs
     const dmListener = supabase
-        .channel(channelName)
-        .on(
-            'postgres_changes',
-            {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'direct_messages',
-                filter: `receiver_id=eq.${user.id}`,
-            },
-            async (payload) => {
-                // A. Update the unread DM indicator state
-                setHasUnreadDms(true);
-                const newMessage = payload.new as DirectMessage;
+      .channel(`public:direct_messages:receiver_id=eq.${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          setHasUnreadDms(true);
+          const newMessage = payload.new as DirectMessage;
+          const senderProfile = await getProfile(newMessage.sender_id);
+          if (!senderProfile) return; // Don't show notification if sender profile can't be found
+          
+          const senderName = senderProfile?.username || 'Someone';
+          const notificationMessage = `${senderName}: ${newMessage.content.substring(0, 50)}${newMessage.content.length > 50 ? '...' : ''}`;
+          
+          setNotification({ 
+              message: notificationMessage,
+              type: 'dm',
+              senderProfile: senderProfile
+          });
 
-                // B. Fetch sender's profile for notification content
-                const senderProfile = await getProfile(newMessage.sender_id);
-                if (!senderProfile) return; // Avoid notifications from unknown senders
+          // Browser notification if tab is not active
+          if (document.hidden && Notification.permission === 'granted') {
+            new Notification('New Message on MovieFrd', {
+              body: notificationMessage,
+            });
+          }
+        }
+      )
+      .subscribe();
 
-                const senderName = senderProfile.username || 'Someone';
-                const messageSnippet = newMessage.content.substring(0, 50) + (newMessage.content.length > 50 ? '...' : '');
-                const notificationMessage = `${senderName}: ${messageSnippet}`;
-
-                // C. Show the in-app (toast) notification
-                setNotification({
-                    message: notificationMessage,
-                    type: 'dm',
-                    senderProfile: senderProfile
-                });
-
-                // D. Show a native browser notification if the tab is not active
-                if (document.hidden && Notification.permission === 'granted') {
-                    const appIcon = "data:image/svg+xml,%3csvg viewBox='0 0 258 240' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M189.5 106.928C195.833 110.797 195.833 129.203 189.5 133.072L50 221.244C43.6667 225.113 36.5 220.41 36.5 212.922V27.0782C36.5 19.5902 43.6667 14.8872 50 18.7562L189.5 106.928Z' fill='%23E73827'/%3e%3cg stroke='%23E73827' stroke-width='5' stroke-linecap='round'%3e%3ccircle cx='199' cy='80' r='11' fill='%23E73827'/%3e%3ccircle cx='199' cy='160' r='11' fill='%23E73827'/%3e%3ccircle cx='245' cy='120' r='11' fill='%23E73827'/%3e%3cpath d='M190 120L199 80'/%3e%3cpath d='M190 120L199 160'/%3e%3cpath d='M199 80L245 120'/%3e%3cpath d='M199 160L245 120'/%3e%3c/g%3e%3c/svg%3e";
-                    new Notification('New Message on MovieFrd', {
-                        body: notificationMessage,
-                        icon: appIcon,
-                    });
-                }
-            }
-        )
-        .subscribe((status, err) => {
-            // Add error handling for the subscription itself
-            if (status === 'SUBSCRIBE_FAILED' || status === 'CHANNEL_ERROR') {
-                console.error(`Supabase DM listener failed to subscribe: ${status}`, err);
-                setNotification({ message: 'Real-time connection failed. Please refresh.', type: 'error' });
-            }
-        });
-
-    // Cleanup function to remove the channel when the component unmounts or user changes
     return () => {
-        supabase.removeChannel(dmListener);
+      supabase.removeChannel(dmListener);
     };
   }, [user, refreshUnreadDms]);
 

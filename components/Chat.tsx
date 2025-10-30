@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
 import { 
-    getChatRooms, createChatRoom, getRoomMessages, sendMessage, 
+    getChatRooms, createChatRoom, getRoomMessages, sendMessage, subscribeToRoomMessages,
     getFriendships, getDirectMessages, sendDirectMessage, subscribeToAllDirectMessagesForUser, getProfile,
     markDirectMessagesAsSeen
 } from '../supabaseApi';
@@ -45,13 +45,11 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   // --- Real-time features state ---
   const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const typingTimers = useRef<Map<string, number>>(new Map());
-  const dmChannelRef = useRef<RealtimeChannel | null>(null);
   
-  // --- Refs for stale closure prevention in subscriptions ---
-  const messageHandlerRef = useRef<((payload: any) => void) | null>(null);
+  // --- Ref for stale closure prevention in subscriptions ---
   const activeConversationRef = useRef(activeConversation);
-  
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
@@ -157,124 +155,115 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   }, [activeConversation, user, refreshUnreadDms]);
 
 
-  // Effect to keep the message handler function up-to-date with the latest state
-  useEffect(() => {
-    if (!user) return;
-    
-    messageHandlerRef.current = async (payload: any) => {
-        const { eventType, new: newMessage, table } = payload;
-        
-        const isDm = table === 'direct_messages';
-        const isRoomMessage = table === 'room_messages';
-        const currentConvo = activeConversationRef.current;
-
-        let isForActiveConversation = false;
-        if (currentConvo?.type === 'dm' && isDm) {
-            const otherUserId = currentConvo.id;
-            if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) ||
-                (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
-            isForActiveConversation = true;
-            }
-        } else if (currentConvo?.type === 'room' && isRoomMessage) {
-            if (newMessage.room_id === currentConvo.id) {
-            isForActiveConversation = true;
-            }
-        }
-
-        if (isForActiveConversation) {
-            if (newMessage.sender_id) {
-                const senderIdStr = String(newMessage.sender_id);
-                // Use functional update for profileCache to avoid dependency
-                setProfileCache(prevCache => {
-                    if (!prevCache.has(senderIdStr)) {
-                        getProfile(senderIdStr).then(senderProfile => {
-                            if (senderProfile) {
-                                setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
-                            }
-                        });
-                    }
-                    return prevCache;
-                });
-                newMessage.profiles = (await getProfile(senderIdStr)) || null;
-            }
-
-            if (eventType === 'INSERT') {
-                setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
-                if (currentConvo?.type === 'dm' && newMessage.sender_id === currentConvo.id) {
-                    await markDirectMessagesAsSeen(currentConvo.id, user.id);
-                    refreshUnreadDms();
-                }
-            }
-            if (eventType === 'UPDATE') {
-                setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
-            }
-        } else if (eventType === 'INSERT' && isDm && newMessage.receiver_id === user.id) {
-            refreshUnreadDms();
-        }
-    };
-  }, [user, profile, refreshUnreadDms]);
-
-
-  // Effect to manage all real-time subscriptions.
+  // Effect to manage all real-time subscriptions
   useEffect(() => {
     if (!user || !profile) return;
-    
-    const messageHandler = (payload: any) => {
-        messageHandlerRef.current?.(payload);
-    };
 
-    const dmChannel = subscribeToAllDirectMessagesForUser(user.id, messageHandler);
-    dmChannelRef.current = dmChannel;
+    const handleRealtimeMessage = async (payload: any) => {
+      const { eventType, new: newMessage, table } = payload;
+      const currentActiveConversation = activeConversationRef.current;
 
-    dmChannel
-        .on('broadcast', { event: 'typing' }, ({ payload }) => {
-            if (payload.userId !== user.id && activeConversationRef.current?.type === 'dm' && payload.conversationId === activeConversationRef.current.id) {
-                const typingUser = { id: payload.userId, username: payload.username, avatar_url: null };
-                
-                setTypingUsers(prev => {
-                    if (prev.some(u => u.id === payload.userId)) return prev;
-                    return [...prev, typingUser];
-                });
+      const isDm = table === 'direct_messages';
+      const isRoomMessage = table === 'room_messages';
 
-                if (typingTimers.current.has(payload.userId)) {
-                    clearTimeout(typingTimers.current.get(payload.userId));
-                }
+      let isForActiveConversation = false;
+      if (currentActiveConversation?.type === 'dm' && isDm) {
+        const otherUserId = currentActiveConversation.id;
+        if ((newMessage.sender_id === user.id && newMessage.receiver_id === otherUserId) ||
+            (newMessage.sender_id === otherUserId && newMessage.receiver_id === user.id)) {
+          isForActiveConversation = true;
+        }
+      } else if (currentActiveConversation?.type === 'room' && isRoomMessage) {
+        if (newMessage.room_id === currentActiveConversation.id) {
+          isForActiveConversation = true;
+        }
+      }
 
-                const timerId = window.setTimeout(() => {
-                    setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-                    typingTimers.current.delete(payload.userId);
-                }, 4000); // Remove after 4 seconds of inactivity
-                typingTimers.current.set(payload.userId, timerId);
+      if (isForActiveConversation) {
+        if (newMessage.sender_id) {
+          const senderIdStr = String(newMessage.sender_id);
+          if (!profileCache.has(senderIdStr)) {
+            const senderProfile = await getProfile(senderIdStr);
+            if (senderProfile) {
+              setProfileCache(prev => new Map(prev).set(senderProfile.id, senderProfile));
+              newMessage.profiles = senderProfile;
             }
-        })
-        .on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
-             if (payload.userId !== user.id) {
-                if (typingTimers.current.has(payload.userId)) {
-                    clearTimeout(typingTimers.current.get(payload.userId));
-                    typingTimers.current.delete(payload.userId);
-                }
-                setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-            }
-        });
-    
-    const roomChannel = supabase
-      .channel('all-room-messages-subscription')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_messages' }, messageHandler)
-      .subscribe((status, err) => {
-          if (status === 'CHANNEL_ERROR') {
-              console.error(`Failed to subscribe to rooms:`, err);
+          } else {
+            newMessage.profiles = profileCache.get(senderIdStr) || null;
           }
-      });
-        
-    return () => {
-        supabase.removeChannel(dmChannel).catch(err => console.error("Error removing DM channel:", err));
-        supabase.removeChannel(roomChannel).catch(err => console.error("Error removing Room channel:", err));
-        dmChannelRef.current = null;
-        typingTimers.current.forEach(timerId => clearTimeout(timerId));
-        typingTimers.current.clear();
-    };
-  }, [user, profile]);
+        }
 
+        if (eventType === 'INSERT') {
+          setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
+          if (currentActiveConversation?.type === 'dm' && newMessage.sender_id === currentActiveConversation.id) {
+            await markDirectMessagesAsSeen(currentActiveConversation.id, user.id);
+            refreshUnreadDms();
+          }
+        }
+        if (eventType === 'UPDATE') {
+          setMessages(prev => prev.map(m => m.id === newMessage.id ? { ...m, ...newMessage } : m));
+        }
+      } else if (eventType === 'INSERT' && isDm && newMessage.receiver_id === user.id) {
+        refreshUnreadDms();
+      }
+    };
+
+    const allMessagesSubscription = subscribeToAllDirectMessagesForUser(user.id, handleRealtimeMessage);
+
+    const roomSubscriptions = rooms.map(room => 
+        subscribeToRoomMessages(room.id, handleRealtimeMessage)
+    );
+
+    const handleTypingEvent = (payload: { userId: string, username: string }) => {
+      if (payload.userId !== user.id) {
+        if (typingTimers.current.has(payload.userId)) {
+          clearTimeout(typingTimers.current.get(payload.userId)!);
+        }
+        setTypingUsers(prev => {
+          if (prev.find(u => u.id === payload.userId)) return prev;
+          return [...prev, { id: payload.userId, username: payload.username, avatar_url: null }];
+        });
+        const timerId = window.setTimeout(() => {
+          setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+          typingTimers.current.delete(payload.userId);
+        }, 3000);
+        typingTimers.current.set(payload.userId, timerId);
+      }
+    };
+
+    // Listen for broadcast typing events on the subscriptions
+    allMessagesSubscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
+    allMessagesSubscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
+      if (typingTimers.current.has(payload.userId)) {
+        clearTimeout(typingTimers.current.get(payload.userId)!);
+        typingTimers.current.delete(payload.userId);
+      }
+      setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+    });
+
+    roomSubscriptions.forEach(subscription => {
+        subscription.on('broadcast', { event: 'typing' }, ({ payload }) => handleTypingEvent(payload));
+        subscription.on('broadcast', { event: 'stopped-typing' }, ({ payload }) => {
+          if (typingTimers.current.has(payload.userId)) {
+            clearTimeout(typingTimers.current.get(payload.userId)!);
+            typingTimers.current.delete(payload.userId);
+          }
+          setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
+        });
+    });
+
+    return () => {
+      try {
+        if (allMessagesSubscription) supabase.removeChannel(allMessagesSubscription);
+        roomSubscriptions.forEach(sub => supabase.removeChannel(sub));
+      } catch (err) {
+        // ignore
+      }
+      typingTimers.current.forEach(tid => clearTimeout(tid));
+      typingTimers.current.clear();
+      setTypingUsers([]);
+    };
+  }, [rooms, user, profile, profileCache, refreshUnreadDms]);
 
 
   const handleSendMessage = useCallback(async (content: string) => {
@@ -325,14 +314,13 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   }, [user, profile, activeConversation, replyToMessage, setNotification]);
 
   const handleTyping = useCallback((isTyping: boolean) => {
-      if (!user || !profile || !activeConversation || activeConversation.type !== 'dm' || !dmChannelRef.current) return;
-      
-      dmChannelRef.current.send({
-          type: 'broadcast',
-          event: isTyping ? 'typing' : 'stopped-typing',
-          payload: { userId: user.id, username: profile.username, conversationId: activeConversation.id },
-      });
-  }, [user, profile, activeConversation]);
+    if (!typingChannelRef.current || !user || !profile) return;
+    typingChannelRef.current.send({
+        type: 'broadcast',
+        event: isTyping ? 'typing' : 'stopped-typing',
+        payload: { userId: user.id, username: profile.username },
+    });
+  }, [user, profile]);
 
 
   const handleOpenCreateRoom = (isAnonymous: boolean) => {
