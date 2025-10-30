@@ -207,28 +207,6 @@ export const sendMessage = async (roomId: number, senderId: string, content: str
   return data as ChatMessage;
 };
 
-export const subscribeToRoomMessages = (
-  roomId: number, 
-  onMessageEvent: (payload: any) => void
-): RealtimeChannel => {
-  const channel = supabase.channel(`room-${roomId}`);
-  
-  channel
-    .on(
-      'postgres_changes',
-      { 
-        event: '*', 
-        schema: 'public', 
-        table: 'room_messages', 
-        filter: `room_id=eq.${roomId}` 
-      },
-      onMessageEvent
-    )
-    .subscribe();
-
-  return channel;
-};
-
 
 // --- Friendship and DM Functions ---
 
