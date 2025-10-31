@@ -1,14 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import React, { useState, useEffect, useMemo } from 'react';
 import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
 import { Movie, UserActivity, UserMovieList } from '../types';
-import { fetchMovies, fetchMovieDetails, searchMovies } from '../api';
+import { fetchMovies, fetchMovieDetails } from '../api';
 import { getFriendActivity } from '../supabaseApi';
 import { MovieListSkeleton, ActivitySkeleton } from './skeletons';
 import { useAuth } from '../contexts/AuthContext';
 import { formatTimeAgo } from '../utils';
-import { SparklesIcon } from './icons';
 import SortControls, { SortKey } from './SortControls';
 
 interface DashboardProps {
@@ -17,165 +15,6 @@ interface DashboardProps {
   onSelectMovie: (movieId: number) => void;
   onSelectProfile: (userId: string) => void;
 }
-
-const GeminiRecommender: React.FC<Pick<DashboardProps, 'userMovieLists' | 'onListUpdate' | 'onSelectMovie'>> = ({ userMovieLists, onListUpdate, onSelectMovie }) => {
-  const [recommendations, setRecommendations] = useState<Movie[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasFetched, setHasFetched] = useState(false);
-  const [watchedMovies, setWatchedMovies] = useState<Movie[]>([]);
-
-  useEffect(() => {
-    const fetchWatchedMovies = async () => {
-        const watchedIds = userMovieLists.filter(item => item.list_type === 'watched').map(item => item.tmdb_movie_id);
-        if (watchedIds.length > 0) {
-            const moviePromises = watchedIds.slice(0, 15).map(id => fetchMovieDetails(id)); // Get up to 15 movies for context
-            const movies = await Promise.all(moviePromises);
-            setWatchedMovies(movies.filter((m): m is Movie => m !== null));
-        } else {
-            setWatchedMovies([]);
-        }
-    };
-    fetchWatchedMovies();
-  }, [userMovieLists]);
-
-  const handleGetRecommendations = useCallback(async () => {
-    if (watchedMovies.length < 3) {
-      setError("Watch at least 3 movies to get personalized AI recommendations!");
-      setRecommendations([]);
-      setHasFetched(true);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setHasFetched(true);
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-      
-      const watchedTitles = watchedMovies.map(m => `"${m.title}"`).join(', ');
-      const prompt = `Based on a user enjoying these movies: ${watchedTitles}. Recommend 10 other movies they might like. Do not recommend any of the movies from the provided list. For each movie, provide its title and original release year. Your response must strictly follow the provided JSON schema.`;
-      
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              recommendations: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    year: { type: Type.INTEGER },
-                  },
-                  required: ["title", "year"]
-                }
-              }
-            }
-          }
-        }
-      });
-      
-      const jsonResponse = JSON.parse(response.text);
-      const recommendedTitles: {title: string, year: number}[] = jsonResponse.recommendations;
-
-      if (!recommendedTitles || recommendedTitles.length === 0) {
-        throw new Error("The AI couldn't generate recommendations at this time. Please try again later.");
-      }
-
-      const movieDetailsPromises = recommendedTitles.map(rec => searchMovies(rec.title));
-      const searchResultsArrays = await Promise.all(movieDetailsPromises);
-
-      const finalRecommendations = recommendedTitles.map((rec, index) => {
-          const resultsForTitle = searchResultsArrays[index];
-          if (!resultsForTitle || resultsForTitle.length === 0) return null;
-          
-          // Prioritize movies that match the year provided by the AI
-          const perfectMatch = resultsForTitle.find(movie => movie.releaseDate && new Date(movie.releaseDate).getFullYear() === rec.year);
-          return perfectMatch || resultsForTitle[0];
-      })
-      .filter((m): m is Movie => m !== null)
-      // Remove potential duplicates after fetching
-      .filter((movie, index, self) => index === self.findIndex((m) => m.id === movie.id))
-      .slice(0, 7); // Show up to 7 recommendations
-      
-      if (finalRecommendations.length === 0) {
-          setError("The AI couldn't find any suitable recommendations. Try watching a few more diverse movies!");
-      }
-      setRecommendations(finalRecommendations);
-
-    } catch (err: any) {
-      console.error("Gemini recommendation error:", err);
-      setError("Sorry, we couldn't fetch AI recommendations right now. Please try again later.");
-      setRecommendations([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [watchedMovies]);
-  
-  const renderContent = () => {
-    if (isLoading) {
-      return <MovieListSkeleton />;
-    }
-    if (error) {
-        return (
-            <div className="text-center text-yellow-600 dark:text-yellow-400 p-6 bg-yellow-500/10 rounded-lg">
-                <p className="font-semibold">{error}</p>
-            </div>
-        );
-    }
-    if (recommendations.length > 0) {
-        return (
-             <MovieList 
-                movies={recommendations} 
-                userMovieLists={userMovieLists}
-                onListUpdate={onListUpdate}
-                onSelectMovie={onSelectMovie}
-            />
-        );
-    }
-    if (hasFetched && recommendations.length === 0 && !error) {
-         return (
-            <div className="text-center text-gray-500 dark:text-gray-400 p-6">
-                <p>The AI couldn't find any recommendations based on your list. Try watching a few more movies!</p>
-            </div>
-        );
-    }
-    return null;
-  };
-  
-  return (
-    <section className="mb-12 bg-white dark:bg-gray-800/50 rounded-lg p-4 sm:p-6 shadow-md">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-            <h2 className="text-2xl md:text-3xl font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-                <SparklesIcon className="w-8 h-8 text-red-500" />
-                AI-Powered Recommendations
-            </h2>
-            <button
-                onClick={handleGetRecommendations}
-                disabled={isLoading}
-                className="mt-3 sm:mt-0 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-red-800 disabled:cursor-not-allowed self-start sm:self-center"
-            >
-                {isLoading ? 'Thinking...' : (hasFetched ? 'Refresh Recommendations' : 'Get My Recommendations')}
-            </button>
-        </div>
-
-        {!hasFetched && (
-             <div className="text-center text-gray-500 dark:text-gray-400 p-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                <p>Click the button to get movie recommendations based on your watched list!</p>
-                <p className="text-xs mt-1">(You need to have at least 3 movies in your 'Watched' list)</p>
-            </div>
-        )}
-        
-        {hasFetched && renderContent()}
-    </section>
-  );
-};
 
 const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
   const { user } = useAuth();
@@ -299,11 +138,6 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 lg:px-0">
       <div className="lg:col-span-2">
-        <GeminiRecommender
-            userMovieLists={userMovieLists}
-            onListUpdate={onListUpdate}
-            onSelectMovie={onSelectMovie}
-        />
         {loadingMovies ? (
             <>
                 <MovieListSkeleton />
