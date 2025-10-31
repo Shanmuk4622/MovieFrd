@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
-import { RealtimeProvider } from './contexts/RealtimeContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -13,9 +12,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <AuthProvider>
-      <RealtimeProvider>
-        <App />
-      </RealtimeProvider>
+      <App />
     </AuthProvider>
   </React.StrictMode>
 );

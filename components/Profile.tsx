@@ -7,6 +7,7 @@ import { fetchMovieDetails } from '../api';
 import MovieList from './MovieList';
 import UserDiscovery from './UserSearch';
 import FriendList from './FriendList';
+import FriendRecommendations from './FriendRecommendations';
 import { UserIcon, SunIcon, MoonIcon, PencilIcon } from './icons';
 import { MovieListSkeleton } from './skeletons';
 
@@ -215,6 +216,7 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
         <div className="md:col-span-1">
             <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 space-y-6 shadow-sm">
                 <UserDiscovery currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
+                <FriendRecommendations currentUser={user} onFriendAction={fetchFriendships} />
                 <FriendList 
                   currentUser={user} 
                   friendships={friendships} 

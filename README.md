@@ -74,7 +74,6 @@
   - **Real-time Engine**: Supabase Realtime Subscriptions
   - **Storage**: Supabase Storage (for user avatars)
 - **Movie Data**: [The Movie Database (TMDB) API](https://www.themoviedb.org/documentation/api)
-- **AI Recommendations**: [Google Gemini API](https://ai.google.dev/) *(Note: Currently commented out in the code but can be re-enabled)*
 
 ---
 
@@ -154,4 +153,3 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 [supabase-url]: https://supabase.io
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge
 [license-url]: https://opensource.org/licenses/MIT
-
