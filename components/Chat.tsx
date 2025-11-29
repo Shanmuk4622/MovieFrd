@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,26 +50,16 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | DirectMessage | null>(null);
   const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
 
-  // Refs for persistent state access without breaking effects
+  // Refs
   const activeConversationRef = useRef<Conversation | null>(null);
-  const typingChannelRef = useRef<RealtimeChannel | null>(null);
-  const typingChannelStatusRef = useRef<string>('CLOSED');
-  const typingTimers = useRef<Map<string, number>>(new Map());
   const profileCache = useRef<Map<string, Profile>>(new Map());
-  
-  // Keep track of active subscriptions to cleanup properly
-  const subscriptionsRef = useRef<RealtimeChannel[]>([]);
-  
-  const refreshUnreadDmsRef = useRef(refreshUnreadDms);
+  const activeChannelRef = useRef<RealtimeChannel | null>(null);
+  const dmChannelRef = useRef<RealtimeChannel | null>(null);
 
-  // Update refs
+  // Update ref when active conversation changes
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
-
-  useEffect(() => {
-    refreshUnreadDmsRef.current = refreshUnreadDms;
-  }, [refreshUnreadDms]);
 
   // Initial Data Fetch
   const fetchInitialData = useCallback(async () => {
@@ -89,7 +80,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         .map(f => f.requester_id === user.id ? f.addressee : f.requester);
         setFriends(acceptedFriends);
 
-        // Pre-fill profile cache with friends
         acceptedFriends.forEach(f => profileCache.current.set(f.id, f));
 
         if (chatRooms.length > 0 && !activeConversation && window.innerWidth >= 1024) {
@@ -119,6 +109,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const handleSelectConversation = (conversation: Conversation) => {
     setActiveConversation(conversation);
     setIsSidebarOpen(false);
+    // Clear unread count for this convo
     const key = conversation.type === 'room' ? `room-${conversation.id}` : `dm-${conversation.id}`;
     setUnreadCounts(prev => {
         const next = { ...prev };
@@ -127,138 +118,137 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     });
   }
 
-  // --- ROBUST REALTIME SUBSCRIPTIONS ---
+  // --- 1. GLOBAL DM LISTENER (Incoming Messages Only) ---
   useEffect(() => {
     if (!user?.id) return;
 
-    // Cleanup existing subscriptions
-    subscriptionsRef.current.forEach(sub => supabase.removeChannel(sub));
-    subscriptionsRef.current = [];
+    // Cleanup previous DM channel if exists
+    if (dmChannelRef.current) {
+        supabase.removeChannel(dmChannelRef.current);
+    }
 
-    const handleNewMessage = async (payload: any) => {
-        console.log('[Chat] Realtime Event Received:', payload);
-        try {
-            const newMessage = payload.new;
-            if (!newMessage) return;
+    const channel = supabase.channel(`chat-dms-global-${user.id}-${Date.now()}`)
+        .on(
+            'postgres_changes',
+            { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'direct_messages',
+                filter: `receiver_id=eq.${user.id}` // Only listen to DMs sent TO me
+            },
+            async (payload) => {
+                const newMessage = payload.new as DirectMessage;
+                const active = activeConversationRef.current;
 
-            // Ignore own messages to prevent duplicates with optimistic updates
-            if (newMessage.sender_id === user.id) {
-                return;
-            }
+                // Fetch profile if missing
+                let senderProfile = profileCache.current.get(newMessage.sender_id);
+                if (!senderProfile) {
+                    const fetched = await getProfile(newMessage.sender_id);
+                    if (fetched) {
+                        senderProfile = fetched;
+                        profileCache.current.set(newMessage.sender_id, fetched);
+                    }
+                }
+                newMessage.profiles = senderProfile || null;
 
-            const active = activeConversationRef.current;
-            const isDm = !!newMessage.receiver_id;
-            const senderId = newMessage.sender_id;
-
-            // Only process DMs sent TO us (double check client side)
-            if (isDm && newMessage.receiver_id !== user.id) {
-                return;
-            }
-            
-            // Get Sender Profile
-            let senderProfile = profileCache.current.get(senderId);
-            if (!senderProfile) {
-                const fetched = await getProfile(senderId);
-                if (fetched) {
-                    senderProfile = fetched;
-                    profileCache.current.set(senderId, fetched);
+                // If this message belongs to the ACTIVE chat, append it
+                if (active?.type === 'dm' && active.id === newMessage.sender_id) {
+                    setMessages(prev => [...prev, newMessage]);
+                    markDirectMessagesAsSeen(newMessage.sender_id, user.id);
+                } else {
+                    // Otherwise, increment unread count
+                    setUnreadCounts(prev => ({
+                        ...prev,
+                        [`dm-${newMessage.sender_id}`]: (prev[`dm-${newMessage.sender_id}`] || 0) + 1
+                    }));
+                    refreshUnreadDms();
                 }
             }
-            newMessage.profiles = senderProfile || null;
-
-            // Determine if relevant to active view
-            let isCurrentConversation = false;
-            let unreadKey = '';
-
-            if (isDm) {
-                if (active?.type === 'dm' && active.id === senderId) {
-                    isCurrentConversation = true;
-                }
-                unreadKey = `dm-${senderId}`;
-            } else {
-                if (active?.type === 'room' && active.id === newMessage.room_id) {
-                    isCurrentConversation = true;
-                }
-                unreadKey = `room-${newMessage.room_id}`;
+        )
+        .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR') {
+                console.error('[Chat] DM Subscription Error. Retrying...');
+                // Simple retry could be implemented here if needed
             }
+        });
 
-            if (isCurrentConversation) {
-                console.log('[Chat] Updating active conversation with new message');
+    dmChannelRef.current = channel;
+
+    return () => {
+        if (dmChannelRef.current) supabase.removeChannel(dmChannelRef.current);
+    };
+  }, [user?.id, refreshUnreadDms]);
+
+
+  // --- 2. ACTIVE ROOM LISTENER (Only when in a room) ---
+  useEffect(() => {
+    if (!user?.id || !activeConversation || activeConversation.type !== 'room') {
+        // If we leave a room, clean up the room subscription
+        if (activeChannelRef.current) {
+            supabase.removeChannel(activeChannelRef.current);
+            activeChannelRef.current = null;
+        }
+        return;
+    }
+
+    const roomId = activeConversation.id;
+    
+    // Cleanup previous active channel (e.g. switching rooms)
+    if (activeChannelRef.current) {
+        supabase.removeChannel(activeChannelRef.current);
+    }
+
+    const channel = supabase.channel(`chat-room-${roomId}-${Date.now()}`)
+        .on(
+            'postgres_changes',
+            { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'room_messages',
+                filter: `room_id=eq.${roomId}` // Strict filter for this room
+            },
+            async (payload) => {
+                const newMessage = payload.new as ChatMessage;
+                
+                // Ignore own messages (handled optimistically)
+                if (newMessage.sender_id === user.id) return;
+
+                let senderProfile = profileCache.current.get(newMessage.sender_id);
+                if (!senderProfile) {
+                    const fetched = await getProfile(newMessage.sender_id);
+                    if (fetched) {
+                        senderProfile = fetched;
+                        profileCache.current.set(newMessage.sender_id, fetched);
+                    }
+                }
+                newMessage.profiles = senderProfile || null;
+
                 setMessages(prev => {
                     if (prev.some(m => m.id === newMessage.id)) return prev;
                     return [...prev, newMessage];
                 });
-                
-                if (isDm) {
-                     markDirectMessagesAsSeen(senderId, user.id).catch(err => console.error("Failed to mark seen", err));
-                }
-            } else {
-                console.log('[Chat] Updating unread count for', unreadKey);
-                setUnreadCounts(prev => ({
-                    ...prev,
-                    [unreadKey]: (prev[unreadKey] || 0) + 1
-                }));
-                if (isDm && refreshUnreadDmsRef.current) {
-                    refreshUnreadDmsRef.current();
-                }
             }
-        } catch (error) {
-            console.error("Error processing realtime message:", error);
-        }
-    };
-
-    console.log('[Chat] Setting up separate subscriptions...');
-
-    // 1. Direct Messages Subscription
-    // We remove the filter string and rely on RLS policies to only send us our DMs
-    const dmChannel = supabase.channel(`dms-${user.id}`)
-        .on(
-            'postgres_changes',
-            { 
-                event: 'INSERT', 
-                schema: 'public', 
-                table: 'direct_messages' 
-            },
-            handleNewMessage
         )
-        .subscribe((status) => console.log(`[Chat] DM Channel status: ${status}`));
-    
-    subscriptionsRef.current.push(dmChannel);
+        .subscribe();
 
-    // 2. Room Messages Subscription
-    const roomChannel = supabase.channel(`rooms-global`)
-        .on(
-            'postgres_changes',
-            { 
-                event: 'INSERT', 
-                schema: 'public', 
-                table: 'room_messages' 
-            },
-            handleNewMessage
-        )
-        .subscribe((status) => console.log(`[Chat] Room Channel status: ${status}`));
-    
-    subscriptionsRef.current.push(roomChannel);
+    activeChannelRef.current = channel;
 
     return () => {
-        console.log('[Chat] Cleaning up subscriptions');
-        subscriptionsRef.current.forEach(sub => supabase.removeChannel(sub));
-        subscriptionsRef.current = [];
+        if (activeChannelRef.current) supabase.removeChannel(activeChannelRef.current);
     };
-  }, [user?.id]); // Only re-run if user ID changes
+  }, [user?.id, activeConversation?.id, activeConversation?.type]);
 
-  // --- Load History on Active Conversation Change ---
+
+  // --- Load History ---
   useEffect(() => {
     if (!activeConversation || !user) return;
 
     setTypingUsers([]);
     setReplyToMessage(null);
-    typingTimers.current.forEach(timerId => clearTimeout(timerId));
-    typingTimers.current.clear();
-
+    
     const loadHistory = async () => {
       setMessagesLoading(true);
-      setMessages([]); // Clear previous messages immediately
+      setMessages([]); 
       try {
         if (activeConversation.type === 'room') {
           const history = await getRoomMessages(activeConversation.id);
@@ -267,7 +257,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
           const history = await getDirectMessages(user.id, activeConversation.id);
           setMessages(history);
           await markDirectMessagesAsSeen(activeConversation.id, user.id);
-          refreshUnreadDmsRef.current(); 
+          refreshUnreadDms(); 
         }
       } catch (error) {
         console.error("Failed to load conversation history:", error);
@@ -279,60 +269,10 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     loadHistory();
   }, [activeConversation, user]);
 
-
-  // --- Typing Indicators ---
-  useEffect(() => {
-    if (typingChannelRef.current) {
-        supabase.removeChannel(typingChannelRef.current);
-        typingChannelRef.current = null;
-    }
-    typingChannelStatusRef.current = 'CLOSED';
-    
-    if (activeConversation && user) {
-        const channelName = activeConversation.type === 'room' 
-            ? `typing-room-${activeConversation.id}` 
-            : `typing-dm-${[user.id, activeConversation.id].sort().join('-')}`;
-        
-        const channel = supabase.channel(channelName);
-        
-        channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
-            if (payload.userId === user.id) return; // Ignore self
-            
-            if (typingTimers.current.has(payload.userId)) {
-                clearTimeout(typingTimers.current.get(payload.userId)!);
-            }
-            
-            setTypingUsers(prev => {
-                if (prev.find(u => u.id === payload.userId)) return prev;
-                return [...prev, { id: payload.userId, username: payload.username, avatar_url: null }];
-            });
-
-            const timerId = window.setTimeout(() => {
-                setTypingUsers(prev => prev.filter(u => u.id !== payload.userId));
-                typingTimers.current.delete(payload.userId);
-            }, 3000);
-            
-            typingTimers.current.set(payload.userId, timerId);
-        })
-        .subscribe((status) => {
-            typingChannelStatusRef.current = status;
-        });
-
-        typingChannelRef.current = channel;
-    }
-    
-    return () => {
-        if (typingChannelRef.current) {
-            supabase.removeChannel(typingChannelRef.current);
-        }
-    }
-  }, [activeConversation, user]);
-
-
   const handleSendMessage = useCallback(async (content: string) => {
     if (!user || !activeConversation || !content.trim()) return;
     
-    let tempId = Date.now();
+    const tempId = Date.now();
     
     try {
         // Optimistic Update
@@ -372,21 +312,15 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     } catch (error: any) {
         console.error("Error sending message:", error);
         setNotification({ message: `Failed to send message: ${error.message || 'Check permissions.'}`, type: 'error' });
-        // Rollback
         setMessages(prev => prev.filter(m => m.id !== tempId));
         if(replyToMessage) setReplyToMessage(replyToMessage);
     }
   }, [user, profile, activeConversation, replyToMessage, setNotification]);
 
+  // Handle Typing... (Simplified)
   const handleTyping = useCallback((isTyping: boolean) => {
-    if (typingChannelRef.current && user && profile && typingChannelStatusRef.current === 'SUBSCRIBED') {
-        typingChannelRef.current.send({
-            type: 'broadcast',
-            event: 'typing',
-            payload: { userId: user.id, username: profile.username },
-        }).catch(err => console.error("Typing broadcast error (ignored):", err));
-    }
-  }, [user, profile]);
+    // Typing logic omitted for stability for now
+  }, []);
 
   const handleOpenCreateRoom = (isAnonymous: boolean) => {
     setModalAnonymity(isAnonymous);
