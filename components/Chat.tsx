@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,18 +50,23 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | DirectMessage | null>(null);
   const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
 
-  // Refs for persistent state access
+  // Refs for persistent state access without breaking effects
   const activeConversationRef = useRef<Conversation | null>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const typingChannelStatusRef = useRef<string>('CLOSED');
   const typingTimers = useRef<Map<string, number>>(new Map());
   const profileCache = useRef<Map<string, Profile>>(new Map());
   const messagesSubscriptionRef = useRef<RealtimeChannel | null>(null);
-  
-  // Update ref whenever state changes
+  const refreshUnreadDmsRef = useRef(refreshUnreadDms);
+
+  // Update refs
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
+
+  useEffect(() => {
+    refreshUnreadDmsRef.current = refreshUnreadDms;
+  }, [refreshUnreadDms]);
 
   // Initial Data Fetch
   const fetchInitialData = useCallback(async () => {
@@ -121,10 +127,11 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   // --- ROBUST UNIFIED REALTIME SUBSCRIPTION ---
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return; // Depend only on user.id to prevent cycling
 
     // Cleanup existing subscription if it exists
     if (messagesSubscriptionRef.current) {
+        console.log('[Chat] Cleaning up existing subscription before creating new one.');
         supabase.removeChannel(messagesSubscriptionRef.current);
         messagesSubscriptionRef.current = null;
     }
@@ -132,14 +139,15 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     const handleNewMessage = async (payload: any) => {
         try {
             const newMessage = payload.new;
+            // IMPORTANT: Ignore messages sent by self to prevent duplication with optimistic updates
+            if (newMessage.sender_id === user.id) {
+                return;
+            }
+
             const active = activeConversationRef.current;
             
-            // Determine if it's a DM or Room message
             const isDm = !!newMessage.receiver_id;
             const senderId = newMessage.sender_id;
-            
-            // Ignore messages sent by self (handled optimistically), unless they are from another device
-            // For simplicity, we process them but deduplicate in state
             
             // Get Sender Profile
             let senderProfile = profileCache.current.get(senderId);
@@ -158,10 +166,10 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
             if (isDm) {
                 // It's a DM
-                if (active?.type === 'dm' && (active.id === senderId || (senderId === user.id && active.id === newMessage.receiver_id))) {
+                if (active?.type === 'dm' && active.id === senderId) {
                     isCurrentConversation = true;
                 }
-                unreadKey = senderId === user.id ? `dm-${newMessage.receiver_id}` : `dm-${senderId}`;
+                unreadKey = `dm-${senderId}`;
             } else {
                 // It's a Room Message
                 if (active?.type === 'room' && active.id === newMessage.room_id) {
@@ -172,23 +180,22 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
             if (isCurrentConversation) {
                 setMessages(prev => {
-                    // Deduplicate based on ID
                     if (prev.some(m => m.id === newMessage.id)) return prev;
                     return [...prev, newMessage];
                 });
                 
                 // If it's an incoming DM in active window, mark as seen
-                if (isDm && senderId !== user.id) {
+                if (isDm) {
                      markDirectMessagesAsSeen(senderId, user.id).catch(err => console.error("Failed to mark seen", err));
                 }
             } else {
-                // Update unread counts if it's an incoming message (not sent by me)
-                if (senderId !== user.id) {
-                     setUnreadCounts(prev => ({
-                        ...prev,
-                        [unreadKey]: (prev[unreadKey] || 0) + 1
-                    }));
-                    if (isDm) refreshUnreadDms();
+                // Update unread counts
+                setUnreadCounts(prev => ({
+                    ...prev,
+                    [unreadKey]: (prev[unreadKey] || 0) + 1
+                }));
+                if (isDm && refreshUnreadDmsRef.current) {
+                    refreshUnreadDmsRef.current();
                 }
             }
         } catch (error) {
@@ -196,6 +203,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         }
     };
 
+    console.log('[Chat] Initializing unified subscription...');
     const channel = supabase.channel(`unified-chat-${user.id}`)
         // Listen for DMs received by me
         .on(
@@ -208,20 +216,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             },
             handleNewMessage
         )
-        // Listen for DMs sent by me (sync across tabs)
-        .on(
-            'postgres_changes',
-            { 
-                event: 'INSERT', 
-                schema: 'public', 
-                table: 'direct_messages',
-                filter: `sender_id=eq.${user.id}`
-            },
-            handleNewMessage
-        )
         // Listen for ALL Room messages
-        // Note: Listening to all room messages is acceptable for this scale. 
-        // For larger scale, one would use separate channels per room or a join table filter.
         .on(
             'postgres_changes',
             { 
@@ -233,22 +228,18 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         )
         .subscribe((status, err) => {
             console.log(`[Chat] Realtime connection status: ${status}`, err || '');
-            if (status === 'CHANNEL_ERROR') {
-                console.error("[Chat] Realtime channel error. Retrying...");
-                // Simple retry mechanism could be implemented here, 
-                // but usually Supabase client handles reconnection.
-            }
         });
 
     messagesSubscriptionRef.current = channel;
 
     return () => {
         if (messagesSubscriptionRef.current) {
+            console.log('[Chat] Unmounting, removing subscription.');
             supabase.removeChannel(messagesSubscriptionRef.current);
             messagesSubscriptionRef.current = null;
         }
     };
-  }, [user, refreshUnreadDms]);
+  }, [user?.id]); // Only re-run if user ID changes, NOT when unread count refresh function changes.
 
   // --- Load History on Active Conversation Change ---
   useEffect(() => {
@@ -270,7 +261,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
           const history = await getDirectMessages(user.id, activeConversation.id);
           setMessages(history);
           await markDirectMessagesAsSeen(activeConversation.id, user.id);
-          refreshUnreadDms();
+          refreshUnreadDmsRef.current(); // Use ref here too
         }
       } catch (error) {
         console.error("Failed to load conversation history:", error);
@@ -280,7 +271,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     };
 
     loadHistory();
-  }, [activeConversation, user, refreshUnreadDms]);
+  }, [activeConversation, user]); // Removed refreshUnreadDms dependency
 
 
   // --- Typing Indicators (Specific Channel per conversation) ---
