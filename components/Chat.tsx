@@ -52,6 +52,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   // Refs for persistent state access in event listeners
   const activeConversationRef = useRef<Conversation | null>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
+  const typingChannelStatusRef = useRef<string>('CLOSED');
   const typingTimers = useRef<Map<string, number>>(new Map());
   
   // Update ref whenever state changes
@@ -241,6 +242,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         supabase.removeChannel(typingChannelRef.current);
         typingChannelRef.current = null;
     }
+    typingChannelStatusRef.current = 'CLOSED';
     
     if (activeConversation && user) {
         const channelName = activeConversation.type === 'room' 
@@ -267,7 +269,10 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
             }, 3000);
             
             typingTimers.current.set(payload.userId, timerId);
-        }).subscribe();
+        })
+        .subscribe((status) => {
+            typingChannelStatusRef.current = status;
+        });
 
         typingChannelRef.current = channel;
     }
@@ -331,12 +336,12 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   }, [user, profile, activeConversation, replyToMessage, setNotification]);
 
   const handleTyping = useCallback((isTyping: boolean) => {
-    if (typingChannelRef.current && user && profile) {
+    if (typingChannelRef.current && user && profile && typingChannelStatusRef.current === 'SUBSCRIBED') {
         typingChannelRef.current.send({
             type: 'broadcast',
             event: 'typing',
             payload: { userId: user.id, username: profile.username },
-        });
+        }).catch(err => console.error("Typing broadcast error (ignored):", err));
     }
   }, [user, profile]);
 
