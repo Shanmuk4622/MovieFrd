@@ -25,6 +25,10 @@ const SkeletonItem: React.FC = () => (
 const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConversation, setActiveConversation, onOpenCreateRoom, onlineUsers, unreadCounts, isOpen, setIsOpen, isLoading }) => {
   const publicChannels = rooms.filter(r => !r.is_anonymous);
   const anonymousRooms = rooms.filter(r => r.is_anonymous);
+  
+  // If no conversation is active, we show the list full screen on mobile.
+  // If a conversation IS active, this sidebar becomes a hidden drawer on mobile.
+  const isMobileListMode = !activeConversation;
 
   const RoomLink: React.FC<{ room: ChatRoom }> = ({ room }) => {
     const unreadCount = unreadCounts[`room-${room.id}`] || 0;
@@ -77,7 +81,7 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
 
   const SidebarContent = () => (
      <>
-        <div className="flex items-center justify-between lg:hidden mb-4">
+        <div className={`flex items-center justify-between lg:hidden mb-4 ${isMobileListMode ? 'hidden' : ''}`}>
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Conversations</h2>
             <button 
                 onClick={() => setIsOpen(false)} 
@@ -148,18 +152,24 @@ const RoomSidebar: React.FC<RoomSidebarProps> = ({ rooms, friends, activeConvers
 
   return (
     <>
-        {/* Overlay for mobile */}
-        <div 
-            className={`fixed inset-0 bg-black/50 z-20 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-            onClick={() => setIsOpen(false)}
-        ></div>
+        {/* Overlay for mobile - only show when acting as a drawer (i.e. not in list mode) */}
+        {!isMobileListMode && (
+            <div 
+                className={`fixed inset-0 bg-black/50 z-20 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setIsOpen(false)}
+            ></div>
+        )}
 
         {/* Sidebar */}
         <div id="chat-sidebar" className={`
-            ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
-            fixed lg:static top-0 left-0 h-full lg:h-auto z-30
-            w-64 flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700/50 p-4 flex flex-col space-y-6 overflow-y-auto 
-            transition-transform duration-300 ease-in-out
+            bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700/50 p-4 flex flex-col space-y-6 overflow-y-auto transition-transform duration-300 ease-in-out
+            
+            ${isMobileListMode 
+                ? 'w-full static translate-x-0 h-full z-0' 
+                : `${isOpen ? 'translate-x-0' : '-translate-x-full'} fixed top-0 left-0 h-full z-30 w-64`
+            }
+            
+            lg:translate-x-0 lg:static lg:w-64 lg:h-full lg:flex-shrink-0
         `}>
            <SidebarContent />
         </div>
