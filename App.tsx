@@ -120,11 +120,11 @@ const App: React.FC = () => {
   }
 
   const mainContainerClasses = view === 'chat' 
-    ? 'flex-grow w-full flex-1' 
-    : 'container mx-auto py-4 sm:py-8';
+    ? 'flex-grow w-full flex-1 min-h-0' // min-h-0 is crucial for flex children to scroll correctly
+    : 'container mx-auto py-4 sm:py-8 flex-grow';
   
   const appContainerClasses = view === 'chat'
-    ? "min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col h-screen"
+    ? "h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col overflow-hidden"
     : "min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 flex flex-col";
 
   return (
@@ -143,6 +143,7 @@ const App: React.FC = () => {
             onClose={() => setSelectedMovieId(null)}
             userMovieLists={userMovieLists}
             onListUpdate={handleListUpdate}
+            onSelectMovie={handleSelectMovie}
         />
       )}
       {selectedProfileId && (

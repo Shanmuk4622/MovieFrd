@@ -11,8 +11,7 @@ import {
   sendDirectMessage,
   getProfile,
   markDirectMessagesAsSeen,
-  subscribeToRoomMessages,
-  subscribeToDirectMessages
+  subscribeToRoomMessages
 } from '../supabaseApi';
 import { ChatRoom, ChatMessage, Friendship, Profile, DirectMessage } from '../types';
 import RoomSidebar from './RoomSidebar';
@@ -179,23 +178,39 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
           await markDirectMessagesAsSeen(activeConversation.id, user.id);
           refreshUnreadDms();
 
-          messageSubscriptionRef.current = subscribeToDirectMessages(user.id, activeConversation.id, (payload) => {
-             const { eventType, new: newMessage } = payload;
-              if (eventType === 'INSERT') {
-                  if (newMessage.sender_id && !newMessage.profiles) {
-                      getProfile(newMessage.sender_id).then(p => {
-                          newMessage.profiles = p;
-                          setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
-                      });
-                  } else {
-                      setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
-                  }
+          // FIX: Use manual subscription with simple filters for robust Realtime connection
+          // Complex OR filters in supabase-js often fail silently.
+          const channel = supabase.channel(`dm-${user.id}-${activeConversation.id}`);
+
+          const handleNewDm = async (payload: any) => {
+              const newMessage = payload.new as DirectMessage;
+              
+              // If it's incoming from partner OR outgoing to partner
+              if (newMessage.sender_id === activeConversation.id || newMessage.receiver_id === activeConversation.id) {
                   
-                  if (newMessage.sender_id === activeConversation.id) {
-                      markDirectMessagesAsSeen(activeConversation.id, user.id);
-                  }
+                   if (newMessage.sender_id && !newMessage.profiles) {
+                      // Fetch profile if missing
+                      const p = await getProfile(newMessage.sender_id);
+                      newMessage.profiles = p;
+                   }
+                   
+                   setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
+
+                   // Mark as seen if it's incoming
+                   if (newMessage.sender_id === activeConversation.id) {
+                       markDirectMessagesAsSeen(activeConversation.id, user.id);
+                   }
               }
-          });
+          };
+
+          channel
+            // Listen for incoming messages
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${user.id}` }, handleNewDm)
+            // Listen for outgoing messages (sync across tabs)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `sender_id=eq.${user.id}` }, handleNewDm)
+            .subscribe();
+
+          messageSubscriptionRef.current = channel;
         }
       } catch (error) {
         console.error("Failed to load conversation history:", error);
@@ -216,11 +231,9 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
 
   // --- Background Listener for Sidebar Counts ---
-  // Replaces the global event bus. Directly listens for relevant messages to update counters.
   useEffect(() => {
     if (!user) return;
 
-    // Clean up previous subscription if any
     if (backgroundSubscriptionRef.current) {
         supabase.removeChannel(backgroundSubscriptionRef.current);
         backgroundSubscriptionRef.current = null;
@@ -250,7 +263,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
              }));
              refreshUnreadDms();
              
-             // Show notification
              try {
                 const senderProfile = newMessage.profiles || (await getProfile(String(newMessage.sender_id)));
                 if (senderProfile) {
@@ -271,7 +283,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
         'postgres_changes',
         {
           event: 'INSERT',
-          schema: 'public',
+          schema: 'public', 
           table: 'room_messages'
         },
         (payload) => {
@@ -431,7 +443,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   return (
     <>
-      <div className="flex h-[calc(100vh-64px)] bg-white dark:bg-gray-800 overflow-hidden relative">
+      <div className="flex h-full bg-white dark:bg-gray-800 overflow-hidden relative">
         <RoomSidebar 
             rooms={rooms} 
             friends={friends}

@@ -419,12 +419,19 @@ export const getUnreadDmCount = async (): Promise<number> => {
     return count || 0;
 };
 
-
+/**
+ * Subscribes to direct messages.
+ * Note: Complex OR filters in filters often fail in Realtime.
+ * It is safer to use simple `receiver_id=eq` filters.
+ * Prefer implementing manual subscriptions in components or using simple filters.
+ */
 export const subscribeToDirectMessages = (
   userId1: string,
   userId2: string,
   onMessageEvent: (payload: any) => void
 ): RealtimeChannel => {
+  // Fallback simplified subscription
+  // In production, use the multi-channel approach implemented in Chat.tsx
   const channel = supabase.channel(`dm-${[userId1, userId2].sort().join('-')}`);
   
   channel
@@ -434,8 +441,7 @@ export const subscribeToDirectMessages = (
         event: '*', 
         schema: 'public', 
         table: 'direct_messages',
-        // FIX: This filter is more specific and efficient than the previous version.
-        filter: `or=(and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1}))`
+        filter: `receiver_id=eq.${userId1}` 
       },
       onMessageEvent
     )
@@ -464,7 +470,7 @@ export const subscribeToAllDirectMessagesForUser = (
         schema: 'public', 
         table: 'direct_messages',
         // RLS policies will still apply, but this filter efficiently narrows down events
-        filter: `or=(sender_id.eq.${userId},receiver_id.eq.${userId})` 
+        filter: `receiver_id=eq.${userId}` 
       },
       onMessageEvent
     )

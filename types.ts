@@ -86,10 +86,21 @@ export interface CastMember {
   profileUrl: string | null;
 }
 
+export interface Review {
+  id: string;
+  author: string;
+  content: string;
+  rating: number | null;
+  createdAt: string;
+  avatarUrl: string | null;
+}
+
 export interface MovieDetail extends Movie {
   overview: string;
   releaseDate: string;
   genres: { id: number; name: string }[];
   cast: CastMember[];
   trailerUrl: string | null;
+  similar: Movie[];
+  reviews: Review[];
 }

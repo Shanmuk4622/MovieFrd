@@ -1,4 +1,4 @@
-import { Movie, MovieDetail, CastMember } from './types';
+import { Movie, MovieDetail, CastMember, Review } from './types';
 
 // --- Hardcoded TMDB API Key for Development ---
 // WARNING: This token is provided for development purposes in an environment
@@ -47,6 +47,19 @@ interface TmdbVideos {
         name: string;
         site: string;
         type: string;
+    }[];
+}
+
+interface TmdbReviews {
+    results: {
+        id: string;
+        author: string;
+        content: string;
+        created_at: string;
+        author_details: {
+            rating: number | null;
+            avatar_path: string | null;
+        };
     }[];
 }
 
@@ -149,29 +162,55 @@ export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieD
     }
     try {
         const fetchOptions = getFetchOptions();
-        const [detailsRes, creditsRes, videosRes] = await Promise.all([
-            fetch(`${API_BASE_URL}/movie/${movieId}`, fetchOptions),
-            fetch(`${API_BASE_URL}/movie/${movieId}/credits`, fetchOptions),
-            fetch(`${API_BASE_URL}/movie/${movieId}/videos`, fetchOptions)
+        
+        // Helper to safely fetch optional resources without breaking the main load
+        const safeFetch = (url: string) => fetch(url, fetchOptions).then(res => res.ok ? res.json() : null).catch(() => null);
+
+        // Main details (required)
+        const detailsRes = await fetch(`${API_BASE_URL}/movie/${movieId}`, fetchOptions);
+        if (!detailsRes.ok) {
+            throw new Error(`Failed to fetch details for movie ID ${movieId}`);
+        }
+        const details: TmdbMovieDetail = await detailsRes.json();
+
+        // Optional resources (parallel)
+        const [credits, videos, similarData, reviewsData] = await Promise.all([
+            safeFetch(`${API_BASE_URL}/movie/${movieId}/credits`),
+            safeFetch(`${API_BASE_URL}/movie/${movieId}/videos`),
+            safeFetch(`${API_BASE_URL}/movie/${movieId}/similar`),
+            safeFetch(`${API_BASE_URL}/movie/${movieId}/reviews`)
         ]);
 
-        if (!detailsRes.ok || !creditsRes.ok || !videosRes.ok) {
-            throw new Error(`Failed to fetch extended details for movie ID ${movieId}`);
-        }
-        
-        const details: TmdbMovieDetail = await detailsRes.json();
-        const credits: TmdbCredits = await creditsRes.json();
-        const videos: TmdbVideos = await videosRes.json();
-
-        const cast = credits.cast.slice(0, 10).map((c): CastMember => ({
+        const cast = credits?.cast ? credits.cast.slice(0, 10).map((c: any): CastMember => ({
             id: c.id,
             name: c.name,
             character: c.character,
             profileUrl: c.profile_path ? `${IMAGE_BASE_URL_W200}${c.profile_path}` : 'https://via.placeholder.com/200x300.png?text=No+Image',
-        }));
+        })) : [];
         
-        const officialTrailer = videos.results.find(v => v.site === 'YouTube' && v.type === 'Trailer');
+        const officialTrailer = videos?.results?.find((v: any) => v.site === 'YouTube' && v.type === 'Trailer');
         const trailerUrl = officialTrailer ? `https://www.youtube.com/embed/${officialTrailer.key}` : null;
+
+        const similar: Movie[] = similarData?.results 
+            ? (similarData.results as TmdbMovie[]).map(mapTmdbMovieToMovie).slice(0, 10)
+            : [];
+
+        const reviews: Review[] = reviewsData?.results 
+            ? reviewsData.results.slice(0, 5).map((r: any) => {
+                 let avatar = r.author_details?.avatar_path;
+                 if (avatar && !avatar.startsWith('http')) {
+                     avatar = `${IMAGE_BASE_URL_W200}${avatar}`;
+                 }
+                 return {
+                    id: r.id,
+                    author: r.author,
+                    content: r.content,
+                    rating: r.author_details?.rating,
+                    createdAt: r.created_at,
+                    avatarUrl: avatar
+                };
+            }) 
+            : [];
 
         const movieDetail: MovieDetail = {
             id: details.id,
@@ -184,6 +223,8 @@ export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieD
             genres: details.genres,
             cast,
             trailerUrl,
+            similar,
+            reviews
         };
         
         movieDetailsExtendedCache.set(movieId, movieDetail);
