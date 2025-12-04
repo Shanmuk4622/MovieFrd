@@ -21,6 +21,7 @@ import ChatHeader from './ChatHeader';
 import CreateRoomModal from './CreateRoomModal';
 import { supabase } from '../supabaseClient';
 import { eventBus } from '../utils/eventBus';
+import { useRealtime } from '../contexts/RealtimeContext';
 import { ChatBubbleIcon } from './icons';
 import RealtimeDebug from './RealtimeDebug';
 
@@ -33,6 +34,7 @@ interface ChatProps {
 
 const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   const { user, profile, onlineUsers, refreshUnreadDms, setNotification } = useAuth();
+  const realtime = useRealtime();
   
   // --- Component-local state ---
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -226,6 +228,56 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
     loadHistory();
   }, [activeConversation, user]);
+
+  // --- Polling fallback when realtime events aren't arriving ---
+  useEffect(() => {
+    if (!activeConversation || !user) return;
+
+    let pollTimer: number | null = null;
+    const pollInterval = 2500; // 2.5s
+
+    const pollIfNeeded = async () => {
+      try {
+        // If we have a recent realtime event for this conversation, skip polling
+        const last = realtime?.lastEvent;
+        if (last && (Date.now() - (last.timestamp || 0)) < 3000) {
+          return;
+        }
+
+        if (activeConversation.type === 'room') {
+          const history = await getRoomMessages(activeConversation.id);
+          // Append any messages that we don't already have
+          setMessages(prev => {
+            const prevIds = new Set(prev.map(m => m.id));
+            const toAdd = history.filter(h => !prevIds.has(h.id));
+            if (toAdd.length === 0) return prev;
+            return [...prev, ...toAdd];
+          });
+        } else {
+          const history = await getDirectMessages(user.id, activeConversation.id);
+          setMessages(prev => {
+            const prevIds = new Set(prev.map(m => m.id));
+            const toAdd = history.filter(h => !prevIds.has(h.id));
+            if (toAdd.length === 0) return prev;
+            return [...prev, ...toAdd];
+          });
+          // If viewing DM, mark seen
+          await markDirectMessagesAsSeen(activeConversation.id, user.id);
+        }
+      } catch (e) {
+        // ignore polling errors silently
+        console.debug('[Chat] Polling error', e);
+      }
+    };
+
+    // Start immediate poll then interval
+    pollIfNeeded();
+    pollTimer = window.setInterval(pollIfNeeded, pollInterval);
+
+    return () => {
+      if (pollTimer) window.clearInterval(pollTimer);
+    };
+  }, [activeConversation, user, realtime?.lastEvent]);
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!user || !activeConversation || !content.trim()) return;
