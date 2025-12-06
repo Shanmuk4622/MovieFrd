@@ -104,3 +104,37 @@ export interface MovieDetail extends Movie {
   similar: Movie[];
   reviews: Review[];
 }
+
+// --- Anonymous Chat Types ---
+export type AnonymousChatStatus = 'waiting' | 'paired' | 'ended';
+
+export interface AnonymousChatSession {
+  id: string;
+  session_id: string;
+  user1_id: string | null;
+  user2_id: string | null;
+  status: AnonymousChatStatus;
+  created_at: string;
+  paired_at: string | null;
+  ended_at: string | null;
+  ended_by: string | null;
+}
+
+export interface AnonymousChatMessage {
+  id: number;
+  session_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  is_typing?: boolean;
+}
+
+export interface AnonymousChatArchive {
+  id: string;
+  session_id: string;
+  partner_id: string;
+  message_count: number;
+  started_at: string;
+  ended_at: string;
+  duration_minutes: number;
+}

@@ -215,8 +215,6 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
         </div>
         <div className="md:col-span-1">
             <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 space-y-6 shadow-sm">
-                <UserDiscovery currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
-                <FriendRecommendations currentUser={user} onFriendAction={fetchFriendships} />
                 <FriendList 
                   currentUser={user} 
                   friendships={friendships} 
@@ -224,6 +222,13 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
                   isLoading={loadingFriendships} 
                   onSelectProfile={onSelectProfile}
                 />
+                <FriendRecommendations 
+                  currentUser={user} 
+                  currentUserProfile={profile}
+                  userMovieLists={userMovieLists}
+                  onFriendAction={fetchFriendships} 
+                />
+                <UserDiscovery currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
             </div>
         </div>
     </div>

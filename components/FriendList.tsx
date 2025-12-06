@@ -15,8 +15,11 @@ interface FriendListProps {
 
 type Tab = 'friends' | 'incoming' | 'pending';
 
+const FRIENDS_LIMIT = 10; // Default limit to show
+
 const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFriendAction, isLoading, onSelectProfile }) => {
   const [activeTab, setActiveTab] = useState<Tab>('friends');
+  const [showAllFriends, setShowAllFriends] = useState(false);
 
   const { friends, incomingRequests, pendingRequests } = useMemo(() => {
     const friends: Friendship[] = [];
@@ -36,6 +39,12 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
     });
     return { friends, incomingRequests, pendingRequests };
   }, [friendships, currentUser.id]);
+  
+  // Determine which friends to display based on showAllFriends toggle
+  const displayedFriends = useMemo(() => {
+    if (showAllFriends) return friends;
+    return friends.slice(0, FRIENDS_LIMIT);
+  }, [friends, showAllFriends]);
   
   const handleRequestAction = async (friendshipId: number, accept: boolean) => {
     try {
@@ -94,7 +103,7 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
             <FriendListSkeleton />
         ) : (
             <>
-                {activeTab === 'friends' && friends.map(f => {
+                {activeTab === 'friends' && displayedFriends.map(f => {
                   const friend = f.requester_id === currentUser.id ? f.addressee : f.requester;
                   return (
                     <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
@@ -108,6 +117,14 @@ const FriendList: React.FC<FriendListProps> = ({ currentUser, friendships, onFri
                     </div>
                   )
                 })}
+                {activeTab === 'friends' && friends.length > FRIENDS_LIMIT && (
+                  <button
+                    onClick={() => setShowAllFriends(!showAllFriends)}
+                    className="w-full mt-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 py-2 px-3 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    {showAllFriends ? `Show Less (${FRIENDS_LIMIT})` : `Show All (${friends.length})`}
+                  </button>
+                )}
                 {activeTab === 'incoming' && incomingRequests.map(f => (
                   <div key={f.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-sm">
                     <span className="truncate font-semibold">

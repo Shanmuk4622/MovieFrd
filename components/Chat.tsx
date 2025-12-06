@@ -24,6 +24,7 @@ import { eventBus } from '../utils/eventBus';
 import { useRealtime } from '../contexts/RealtimeContext';
 import { ChatBubbleIcon } from './icons';
 import RealtimeDebug from './RealtimeDebug';
+import AnonymousChat from './AnonymousChat';
 
 export type Conversation = (ChatRoom & { type: 'room' }) | (Profile & { type: 'dm' });
 
@@ -50,6 +51,7 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAnonymity, setModalAnonymity] = useState(false);
+  const [showAnonymousChat, setShowAnonymousChat] = useState(false);
   
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | DirectMessage | null>(null);
   const [typingUsers, setTypingUsers] = useState<Profile[]>([]);
@@ -410,21 +412,31 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
   return (
     <>
       <div className="flex h-full bg-white dark:bg-gray-800 overflow-hidden relative">
-        <RoomSidebar 
-            rooms={rooms} 
-            friends={friends}
-            activeConversation={activeConversation} 
-            setActiveConversation={handleSelectConversation}
-            onOpenCreateRoom={handleOpenCreateRoom}
-            onlineUsers={onlineUsers}
-            unreadCounts={unreadCounts}
-            isOpen={isSidebarOpen}
-            setIsOpen={setIsSidebarOpen}
-            isLoading={loading}
-        />
-        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden transition-transform duration-300 ease-in-out ${activeConversation ? 'flex' : 'hidden lg:flex'}`}>
-          {renderMainContent()}
-        </div>
+        {!showAnonymousChat && (
+          <>
+            <RoomSidebar 
+                rooms={rooms} 
+                friends={friends}
+                activeConversation={activeConversation} 
+                setActiveConversation={handleSelectConversation}
+                onOpenCreateRoom={handleOpenCreateRoom}
+                onOpenAnonymousChat={() => setShowAnonymousChat(true)}
+                onlineUsers={onlineUsers}
+                unreadCounts={unreadCounts}
+                isOpen={isSidebarOpen}
+                setIsOpen={setIsSidebarOpen}
+                isLoading={loading}
+            />
+            <div className={`flex flex-col flex-1 min-w-0 overflow-hidden transition-transform duration-300 ease-in-out ${activeConversation ? 'flex' : 'hidden lg:flex'}`}>
+              {renderMainContent()}
+            </div>
+          </>
+        )}
+        {showAnonymousChat && (
+          <div className="flex flex-col flex-1 w-full h-full">
+            <AnonymousChat onClose={() => setShowAnonymousChat(false)} />
+          </div>
+        )}
       </div>
         <RealtimeDebug />
       <CreateRoomModal
