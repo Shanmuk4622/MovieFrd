@@ -211,17 +211,23 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
   };
 
   const handleSkip = async () => {
+    console.log('[AnonymousChat] Skip button clicked');
     if (session) {
-      await endAnonymousSession(session.session_id);
+      try {
+        await endAnonymousSession(session.session_id);
+        console.log('[AnonymousChat] Session ended successfully');
+      } catch (error) {
+        console.error('[AnonymousChat] Error ending session on skip:', error);
+      }
     }
     
     cleanup();
+    setStatus('idle');
     setSession(null);
     setMessages([]);
     setPartnerDisconnected(false);
-    
-    // Start new search
-    setTimeout(() => handleStartSearch(), 500);
+    setIsTyping(false);
+    setPartnerTyping(false);
   };
 
   const handleDisconnect = async () => {

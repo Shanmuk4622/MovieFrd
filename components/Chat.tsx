@@ -23,7 +23,6 @@ import { supabase } from '../supabaseClient';
 import { eventBus } from '../utils/eventBus';
 import { useRealtime } from '../contexts/RealtimeContext';
 import { ChatBubbleIcon } from './icons';
-import RealtimeDebug from './RealtimeDebug';
 import AnonymousChat from './AnonymousChat';
 
 export type Conversation = (ChatRoom & { type: 'room' }) | (Profile & { type: 'dm' });
@@ -438,7 +437,6 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
           </div>
         )}
       </div>
-        <RealtimeDebug />
       <CreateRoomModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
