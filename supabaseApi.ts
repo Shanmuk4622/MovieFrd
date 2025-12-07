@@ -542,6 +542,7 @@ export const getActiveAnonymousSession = async (): Promise<any | null> => {
  * Get messages for an anonymous chat session
  */
 export const getAnonymousChatMessages = async (sessionId: string): Promise<any[]> => {
+  console.log('[getAnonymousChatMessages] Fetching messages for session:', sessionId);
   const { data, error } = await supabase
     .from('anonymous_chat_messages')
     .select('*')
@@ -549,10 +550,16 @@ export const getAnonymousChatMessages = async (sessionId: string): Promise<any[]
     .order('created_at', { ascending: true });
   
   if (error) {
-    console.error('Error fetching anonymous messages:', error);
+    console.error('[getAnonymousChatMessages] Error fetching messages:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
     return [];
   }
   
+  console.log('[getAnonymousChatMessages] Successfully fetched', data?.length || 0, 'messages:', data);
   return data || [];
 };
 
@@ -563,25 +570,43 @@ export const sendAnonymousMessage = async (
   sessionId: string,
   content: string
 ): Promise<any | null> => {
+  console.log('[sendAnonymousMessage] Starting - Session:', sessionId, 'Content:', content);
   const { data: session } = await supabase.auth.getSession();
-  if (!session?.session?.user) return null;
+  console.log('[sendAnonymousMessage] User session:', session?.session?.user?.id);
+  if (!session?.session?.user) {
+    console.error('[sendAnonymousMessage] No user session found');
+    return null;
+  }
+  
+  const messageData = {
+    session_id: sessionId,
+    sender_id: session.session.user.id,
+    content,
+    is_typing: false
+  };
+  
+  console.log('[sendAnonymousMessage] Attempting to insert:', messageData);
   
   const { data, error } = await supabase
     .from('anonymous_chat_messages')
-    .insert({
-      session_id: sessionId,
-      sender_id: session.session.user.id,
-      content,
-      is_typing: false
-    })
+    .insert(messageData)
     .select()
     .single();
   
+  console.log('[sendAnonymousMessage] Response - Data:', data, 'Error:', error);
+  
   if (error) {
-    console.error('Error sending anonymous message:', error);
+    console.error('[sendAnonymousMessage] Error sending anonymous message:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      status: error.status
+    });
     throw error;
   }
   
+  console.log('[sendAnonymousMessage] Message sent successfully:', data);
   return data;
 };
 
@@ -669,7 +694,10 @@ export const subscribeToAnonymousMessages = (
   sessionId: string,
   onMessage: (payload: any) => void
 ): RealtimeChannel => {
+  console.log('[subscribeToAnonymousMessages] Subscribing to session:', sessionId);
   const channel = supabase.channel(`anon-messages-${sessionId}`);
+  
+  let messageCount = 0;
   
   channel
     .on(
@@ -680,9 +708,28 @@ export const subscribeToAnonymousMessages = (
         table: 'anonymous_chat_messages',
         filter: `session_id=eq.${sessionId}`
       },
-      onMessage
+      (payload) => {
+        messageCount++;
+        console.log(`[subscribeToAnonymousMessages] Message event #${messageCount} received:`, {
+          eventType: payload.eventType,
+          schema: payload.schema,
+          table: payload.table,
+          messageData: payload.new,
+          timestamp: new Date().toISOString()
+        });
+        onMessage(payload);
+      }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      console.log(`[subscribeToAnonymousMessages] Subscription status: ${status}`, err);
+      if (status === 'SUBSCRIBED') {
+        console.log(`[subscribeToAnonymousMessages] ✅ Successfully subscribed to messages for session: ${sessionId}`);
+      } else if (status === 'CLOSED') {
+        console.warn(`[subscribeToAnonymousMessages] ⚠️ Subscription closed for session: ${sessionId}`);
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error(`[subscribeToAnonymousMessages] ❌ Channel error for session: ${sessionId}`, err);
+      }
+    });
   
   return channel;
 };

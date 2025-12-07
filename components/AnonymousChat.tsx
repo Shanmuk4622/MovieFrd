@@ -59,23 +59,33 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
   };
 
   const loadMessages = async (sessionId: string) => {
-    const msgs = await getAnonymousChatMessages(sessionId);
-    setMessages(msgs);
+    console.log('[AnonymousChat] Loading messages for session:', sessionId);
+    try {
+      const msgs = await getAnonymousChatMessages(sessionId);
+      console.log('[AnonymousChat] Loaded messages:', msgs.length, msgs);
+      setMessages(msgs);
+    } catch (error) {
+      console.error('[AnonymousChat] Error loading messages:', error);
+    }
   };
 
   const setupRealtime = (sessionId: string) => {
+    console.log('[AnonymousChat] Setting up realtime for session:', sessionId);
+    
     // Subscribe to session updates (pairing, ending)
     sessionChannelRef.current = subscribeToAnonymousSession(sessionId, (payload) => {
-      console.log('Session update:', payload);
+      console.log('[AnonymousChat] Session update:', payload);
       
       if (payload.eventType === 'UPDATE') {
         const updatedSession = payload.new as AnonymousChatSession;
         setSession(updatedSession);
         
         if (updatedSession.status === 'paired' && status !== 'paired') {
+          console.log('[AnonymousChat] Session paired!');
           setStatus('paired');
           loadMessages(sessionId);
         } else if (updatedSession.status === 'ended') {
+          console.log('[AnonymousChat] Session ended');
           setStatus('ended');
           if (updatedSession.ended_by !== user?.id) {
             setPartnerDisconnected(true);
@@ -86,21 +96,28 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
 
     // Subscribe to new messages
     messagesChannelRef.current = subscribeToAnonymousMessages(sessionId, (payload) => {
-      console.log('[AnonymousChat] Message event:', payload);
+      console.log('[AnonymousChat] New message received:', payload);
+      
       if (payload.eventType === 'INSERT') {
         const newMessage = payload.new as AnonymousChatMessage;
-        console.log('[AnonymousChat] New message received:', newMessage);
-        setMessages(prev => [...prev, newMessage]);
+        console.log('[AnonymousChat] Adding message to state:', newMessage);
+        setMessages(prev => {
+          const updated = [...prev, newMessage];
+          console.log('[AnonymousChat] Updated messages count:', updated.length);
+          return updated;
+        });
       }
     });
 
     // Subscribe to typing indicators
     typingChannelRef.current = subscribeToAnonymousTyping(sessionId, (payload) => {
-      if (payload.payload.user_id !== user?.id) {
-        setPartnerTyping(payload.payload.is_typing);
+      console.log('[AnonymousChat] Typing event:', payload);
+      
+      if (payload.payload?.user_id !== user?.id) {
+        setPartnerTyping(payload.payload?.is_typing || false);
         
         // Auto-hide typing indicator after 3 seconds
-        if (payload.payload.is_typing) {
+        if (payload.payload?.is_typing) {
           setTimeout(() => setPartnerTyping(false), 3000);
         }
       }
@@ -108,11 +125,13 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
   };
 
   const handleStartSearch = async () => {
+    console.log('[AnonymousChat] Starting search...');
     setStatus('searching');
     setMessages([]);
     setPartnerDisconnected(false);
     
     const result = await findAnonymousChatPartner();
+    console.log('[AnonymousChat] Partner search result:', result);
     
     if (result) {
       const sessionData: AnonymousChatSession = {
@@ -127,34 +146,53 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
         ended_by: null
       };
       
+      console.log('[AnonymousChat] Session data created:', sessionData);
       setSession(sessionData);
       
       if (result.partner_id) {
-        console.log('[AnonymousChat] Paired with partner:', result.partner_id);
+        console.log('[AnonymousChat] Partner found! Setting status to paired');
         setStatus('paired');
-        // Load existing messages when paired
+        // Load existing messages
         loadMessages(result.session_id);
-      } else {
-        console.log('[AnonymousChat] Waiting for partner...');
       }
       
       setupRealtime(result.session_id);
+    } else {
+      console.warn('[AnonymousChat] No result from findAnonymousChatPartner');
     }
   };
 
   const handleSendMessage = async (content: string) => {
     if (!session || status !== 'paired') {
-      console.log('[AnonymousChat] Cannot send - not paired', { session, status });
+      console.warn('[AnonymousChat] Cannot send message - not paired', { session, status });
       return;
     }
     
     console.log('[AnonymousChat] Sending message:', content);
+    
+    // Optimistic update - add message immediately
+    const optimisticMessage: AnonymousChatMessage = {
+      id: 'temp-' + Date.now(),
+      session_id: session.session_id,
+      sender_id: user?.id || '',
+      content,
+      created_at: new Date().toISOString(),
+      is_typing: false
+    };
+    console.log('[AnonymousChat] Adding optimistic message:', optimisticMessage);
+    setMessages(prev => [...prev, optimisticMessage]);
+    
     try {
-      const sentMsg = await sendAnonymousMessage(session.session_id, content);
-      console.log('[AnonymousChat] Message sent:', sentMsg);
-      // Message will be added via realtime subscription
+      const result = await sendAnonymousMessage(session.session_id, content);
+      console.log('[AnonymousChat] Message API result:', result);
+      if (result && result.id && result.id !== optimisticMessage.id) {
+        // Replace temporary message with actual message from server
+        setMessages(prev => prev.map(m => m.id === optimisticMessage.id ? result : m));
+      }
     } catch (error) {
       console.error('[AnonymousChat] Failed to send message:', error);
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
     }
   };
 
