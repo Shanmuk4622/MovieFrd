@@ -248,9 +248,10 @@ export const getUserReview = async (userId: string, movieId: number): Promise<Mo
 };
 
 export const getMovieReviews = async (movieId: number, limit: number = 10): Promise<MovieReview[]> => {
-  const { data, error } = await supabase
+  // Fetch reviews without join
+  const { data: reviews, error } = await supabase
     .from('movie_reviews')
-    .select('*, profiles(id, username, avatar_url)')
+    .select('*')
     .eq('tmdb_movie_id', movieId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -259,7 +260,29 @@ export const getMovieReviews = async (movieId: number, limit: number = 10): Prom
     console.error('Error fetching movie reviews:', error);
     return [];
   }
-  return data as MovieReview[] || [];
+
+  // Get unique user IDs
+  const userIds = Array.from(new Set((reviews || []).map(r => r.user_id)));
+  let profileMap: Record<string, Profile> = {};
+  if (userIds.length > 0) {
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .in('id', userIds);
+    if (profileError) {
+      console.error('Error fetching review profiles:', profileError);
+    } else {
+      profiles?.forEach((p: Profile) => {
+        profileMap[p.id] = p;
+      });
+    }
+  }
+
+  // Attach profiles to reviews
+  return (reviews || []).map(r => ({
+    ...r,
+    profiles: profileMap[r.user_id] || null
+  })) as MovieReview[];
 };
 
 export const deleteReview = async (userId: string, movieId: number): Promise<void> => {
