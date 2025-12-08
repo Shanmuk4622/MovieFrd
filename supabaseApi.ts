@@ -117,6 +117,11 @@ export const getFriendActivity = async (userId: string): Promise<(FriendActivity
     
     const friendIds = friendships.map(f => f.requester_id === userId ? f.addressee_id : f.requester_id);
 
+    // Include the current user so they can see their own recent review/list actions in the feed (helps UX/testing)
+    if (!friendIds.includes(userId)) {
+      friendIds.push(userId);
+    }
+
     if (friendIds.length === 0) {
         return [];
     }

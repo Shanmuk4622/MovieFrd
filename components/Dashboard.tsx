@@ -58,18 +58,23 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
       const formattedActivities: UserActivity[] = activitiesFromDb
         .map(activity => {
           const movie = movieDetailsMap.get(activity.tmdb_movie_id);
-          if (!movie || !activity.profiles) {
+          if (!movie) {
             return null;
           }
+
+          const profile = activity.profiles;
+          const userId = profile?.id || (activity as FriendActivity).user_id || (activity as FriendReviewActivity).user_id;
+          const userName = profile?.username || 'Friend';
+          const userAvatarUrl = profile?.avatar_url || `https://i.pravatar.cc/100?u=${userId}`;
 
           // Check if this is a review activity (has rating field)
           const isReview = 'rating' in activity;
 
           return {
             id: activity.id,
-            userId: activity.profiles.id,
-            userName: activity.profiles.username,
-            userAvatarUrl: activity.profiles.avatar_url || `https://i.pravatar.cc/100?u=${activity.profiles.id}`,
+            userId: userId,
+            userName: userName,
+            userAvatarUrl: userAvatarUrl,
             action: isReview 
               ? 'reviewed' 
               : (activity as FriendActivity).list_type === 'watched' 
