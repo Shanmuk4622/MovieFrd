@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 // FIX: UserMovieList is now imported from types.ts
-import { MovieDetail as MovieDetailType, UserMovieList } from '../types';
+import { MovieDetail as MovieDetailType, UserMovieList, MovieReview } from '../types';
 import { fetchMovieDetailsExtended } from '../api';
 import { StarIcon, UserIcon, XIcon, PlusIcon, CheckIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
-import { addMovieToList, removeMovieFromList } from '../supabaseApi';
+import { addMovieToList, removeMovieFromList, getUserReview, addOrUpdateReview, getMovieReviews } from '../supabaseApi';
 import { formatTimeAgo } from '../utils';
+import ReviewModal from './ReviewModal';
 
 interface MovieDetailProps {
     movieId: number;
@@ -13,15 +14,19 @@ interface MovieDetailProps {
     userMovieLists: UserMovieList[];
     onListUpdate: (message: string) => void;
     onSelectMovie: (movieId: number) => void;
+    onActivityRefresh?: () => void;
 }
 
-const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLists, onListUpdate, onSelectMovie }) => {
+const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLists, onListUpdate, onSelectMovie, onActivityRefresh }) => {
     const [movie, setMovie] = useState<MovieDetailType | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { user } = useAuth();
     const [loadingAction, setLoadingAction] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [userReview, setUserReview] = useState<MovieReview | null>(null);
+    const [userReviewsFromDb, setUserReviewsFromDb] = useState<MovieReview[]>([]);
 
     useEffect(() => {
         const loadDetails = async () => {
@@ -31,7 +36,19 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
                 const details = await fetchMovieDetailsExtended(movieId);
                 if (details) {
                     setMovie(details);
-                } else {
+                }
+                
+                // Load user's review if logged in
+                if (user) {
+                    const review = await getUserReview(user.id, movieId);
+                    setUserReview(review);
+                }
+                
+                // Load all user reviews from database
+                const dbReviews = await getMovieReviews(movieId);
+                setUserReviewsFromDb(dbReviews);
+                
+                if (!details) {
                     setError("Could not find details for this movie.");
                 }
             } catch (err) {
@@ -46,7 +63,7 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
             }
         };
         loadDetails();
-    }, [movieId]);
+    }, [movieId, user]);
 
     // Effect to handle 'Escape' key press to close modal
     useEffect(() => {
@@ -87,6 +104,29 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
             console.error("Failed to update list from details", error);
         } finally {
             setLoadingAction(false);
+        }
+    };
+
+    const handleReviewSubmit = async (rating: number, reviewText: string) => {
+        if (!user || !movie) return;
+        
+        try {
+            const review = await addOrUpdateReview(user.id, movieId, rating, reviewText);
+            setUserReview(review);
+            
+            // Refresh user reviews from database
+            const dbReviews = await getMovieReviews(movieId);
+            setUserReviewsFromDb(dbReviews);
+            
+            // Trigger activity refresh in Dashboard
+            if (onActivityRefresh) {
+                onActivityRefresh();
+            }
+            
+            onListUpdate(`Review for '${movie.title}' ${userReview ? 'updated' : 'submitted'} successfully!`);
+        } catch (error) {
+            console.error("Failed to submit review", error);
+            throw error;
         }
     };
 
@@ -136,6 +176,16 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
                         <div className="flex items-center justify-between mt-6 mb-2">
                           <h2 className="text-xl font-semibold border-l-4 border-red-500 pl-3">Synopsis</h2>
                           <div className="flex items-center space-x-2">
+                            {/* Review Button */}
+                            <button
+                              onClick={() => setShowReviewModal(true)}
+                              disabled={loadingAction}
+                              className="flex items-center justify-center bg-purple-600/80 hover:bg-purple-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
+                            >
+                              <StarIcon className="w-4 h-4 mr-1" /> 
+                              {userReview ? `${userReview.rating}/10` : 'Write Review'}
+                            </button>
+                            
                             {isInWatched ? (
                               <button
                                 onClick={() => handleAction('remove')}
@@ -250,10 +300,55 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
                             </>
                         )}
 
-                        {/* Reviews Section */}
+                        {/* User Reviews from Database */}
+                        {userReviewsFromDb.length > 0 && (
+                             <>
+                                <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-red-500 pl-3">User Reviews ({userReviewsFromDb.length})</h2>
+                                <div className="space-y-4">
+                                    {userReviewsFromDb.map(review => (
+                                        <div key={review.id} className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center space-x-2">
+                                                    {review.profiles?.avatar_url ? (
+                                                        <img 
+                                                            src={review.profiles.avatar_url} 
+                                                            alt={review.profiles.username} 
+                                                            className="w-8 h-8 rounded-full object-cover" 
+                                                            onError={(e) => {e.currentTarget.style.display = 'none'}} 
+                                                        />
+                                                    ) : (
+                                                        <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
+                                                                {review.profiles?.username?.charAt(0).toUpperCase() || 'U'}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <span className="font-bold text-sm">{review.profiles?.username || 'Anonymous'}</span>
+                                                    {review.user_id === user?.id && (
+                                                        <span className="text-xs text-purple-500 font-medium">(You)</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                                                    <div className="flex items-center mr-2 bg-yellow-500/20 px-1.5 py-0.5 rounded">
+                                                        <StarIcon className="w-3 h-3 text-yellow-500 mr-1" />
+                                                        <span className="font-bold text-yellow-600 dark:text-yellow-400">{review.rating}/10</span>
+                                                    </div>
+                                                    <span>{formatTimeAgo(review.created_at)}</span>
+                                                </div>
+                                            </div>
+                                            {review.review_text && (
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic">"{review.review_text}"</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                             </>
+                        )}
+
+                        {/* TMDB Reviews Section */}
                         {movie.reviews && movie.reviews.length > 0 && (
                              <>
-                                <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-red-500 pl-3">User Reviews</h2>
+                                <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-blue-500 pl-3">TMDB Reviews</h2>
                                 <div className="space-y-4">
                                     {movie.reviews.map(review => (
                                         <div key={review.id} className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg">
@@ -291,27 +386,46 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
     };
 
     return (
-        <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in"
-            onClick={onClose}
-            role="dialog"
-            aria-modal="true"
-        >
+        <>
             <div 
-                ref={containerRef}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-auto max-h-[90vh] overflow-y-auto relative scroll-smooth"
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in"
+                onClick={onClose}
+                role="dialog"
+                aria-modal="true"
             >
-                <button 
-                    onClick={onClose} 
-                    className="absolute top-3 right-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 z-10 transition-colors"
-                    aria-label="Close movie details"
+                <div 
+                    ref={containerRef}
+                    className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-auto max-h-[90vh] overflow-y-auto relative scroll-smooth"
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <XIcon className="w-5 h-5" />
-                </button>
-                {renderContent()}
+                    <button 
+                        onClick={onClose} 
+                        className="absolute top-3 right-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 z-10 transition-colors"
+                        aria-label="Close movie details"
+                    >
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                    {renderContent()}
+                </div>
             </div>
-        </div>
+
+            {/* Review Modal */}
+            {showReviewModal && movie && (
+                <ReviewModal
+                    movie={{
+                        id: movie.id,
+                        title: movie.title,
+                        posterUrl: movie.posterUrl,
+                        rating: movie.rating,
+                        releaseDate: movie.releaseDate,
+                        popularity: movie.popularity
+                    }}
+                    existingReview={userReview}
+                    onClose={() => setShowReviewModal(false)}
+                    onSubmit={handleReviewSubmit}
+                />
+            )}
+        </>
     );
 };
 

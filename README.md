@@ -37,6 +37,11 @@ MovieFrd brings together everything a movie enthusiast needs:
 - **Personal Collections**: 
   - **Watched List**: Mark movies you've already seen
   - **Watchlist**: Save movies to watch later
+- **Movie Reviews & Ratings**: 
+  - ⭐ **Rate Movies**: Give any movie a 1-10 star rating
+  - ✍️ **Write Reviews**: Share detailed thoughts (up to 2000 characters)
+  - 🔄 **Edit Anytime**: Update your ratings and reviews whenever you want
+  - 📊 **See Friend Ratings**: View what your friends rated movies in activity feed
 - **Movie Details Modal**: 
   - Full synopsis and cast information
   - Trailer integration
@@ -50,7 +55,11 @@ MovieFrd brings together everything a movie enthusiast needs:
   - Send friend requests
   - Accept/decline/manage connections
   - View friend profiles and their movie activity
-- **Live Activity Feed**: See real-time updates of what friends are watching
+- **Live Activity Feed**: 
+  - See real-time updates of what friends are watching
+  - 🌟 **Review Activities**: See when friends rate and review movies
+  - **Rating Badges**: Visual rating display (e.g., "8/10" with star icon)
+  - **Review Previews**: Read first few lines of friend reviews
 - **User Profiles**:
   - View other users' watched lists and watchlists
   - See friend connections and mutual friends
@@ -233,6 +242,7 @@ MovieFrd/
 │   ├── MovieCard.tsx         # Individual movie display
 │   ├── MovieList.tsx         # Movie grid/list view
 │   ├── MovieDetail.tsx       # Movie detail modal
+│   ├── ReviewModal.tsx       # Movie review & rating UI
 │   ├── FriendList.tsx        # Friends management
 │   ├── UserSearch.tsx        # User search functionality
 │   ├── UserProfileModal.tsx  # Profile viewing
@@ -244,7 +254,8 @@ MovieFrd/
 ├── contexts/                 # React Context providers
 │   └── AuthContext.tsx       # Authentication state management
 ├── supabase/                 # Database files
-│   └── functions.sql         # SQL functions for RPC calls
+│   ├── functions.sql         # SQL functions for RPC calls
+│   └── reviews-schema.sql    # Movie reviews table schema
 ├── utils/                    # Utility functions
 │   └── (helper functions)
 ├── App.tsx                   # Main app component

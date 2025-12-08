@@ -26,6 +26,9 @@ const App: React.FC = () => {
   // State for movie detail modal
   const [selectedMovieId, setSelectedMovieId] = useState<number | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  
+  // State for activity refresh callback
+  const [activityRefreshCallback, setActivityRefreshCallback] = useState<(() => void) | null>(null);
 
   // State to pre-select a chat when navigating from a notification
   const [initialChatUser, setInitialChatUser] = useState<ProfileType | null>(null);
@@ -92,6 +95,7 @@ const App: React.FC = () => {
                 onListUpdate={handleListUpdate}
                 onSelectMovie={handleSelectMovie} 
                 onSelectProfile={handleSelectProfile}
+                onActivityRefreshReady={(refreshFn) => setActivityRefreshCallback(() => refreshFn)}
             />;
         case 'profile':
             return <Profile 
@@ -144,6 +148,7 @@ const App: React.FC = () => {
             userMovieLists={userMovieLists}
             onListUpdate={handleListUpdate}
             onSelectMovie={handleSelectMovie}
+            onActivityRefresh={activityRefreshCallback || undefined}
         />
       )}
       {selectedProfileId && (
