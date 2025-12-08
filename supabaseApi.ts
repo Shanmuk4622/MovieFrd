@@ -138,17 +138,52 @@ export const getFriendActivity = async (userId: string): Promise<(FriendActivity
         console.error("Error fetching friend list activity:", listError);
     }
 
-    // Step 3: Fetch review activities
-    const { data: reviewActivities, error: reviewError } = await supabase
-        .from('movie_reviews')
-        .select('*, profiles(*)')
-        .in('user_id', friendIds)
-        .order('created_at', { ascending: false })
-        .limit(20);
+    // Step 3: Fetch review activities (without join; we'll enrich profiles manually)
+    const { data: reviewActivitiesRaw, error: reviewError } = await supabase
+      .from('movie_reviews')
+      .select('*')
+      .in('user_id', friendIds)
+      .order('created_at', { ascending: false })
+      .limit(20);
 
     if (reviewError) {
         console.error("Error fetching friend review activity:", reviewError);
     }
+
+    // Build a profile map from listActivities
+    const profileMap = new Map<string, Profile>();
+    (listActivities || []).forEach(act => {
+      if (act.profiles) {
+        profileMap.set(act.profiles.id, act.profiles);
+      }
+    });
+
+    // Fetch missing profiles for review activities
+    const missingProfileIds = (reviewActivitiesRaw || [])
+      .map(r => r.user_id)
+      .filter(uid => uid && !profileMap.has(uid));
+
+    const uniqueMissing = Array.from(new Set(missingProfileIds));
+    if (uniqueMissing.length > 0) {
+      const { data: missingProfiles, error: missingProfilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', uniqueMissing);
+
+      if (missingProfilesError) {
+        console.error('Error fetching missing profiles for review activities:', missingProfilesError);
+      } else {
+        missingProfiles?.forEach(p => {
+          profileMap.set(p.id, p);
+        });
+      }
+    }
+
+    // Enrich review activities with profiles
+    const reviewActivities = (reviewActivitiesRaw || []).map(r => ({
+      ...r,
+      profiles: profileMap.get(r.user_id) || null
+    })) as FriendReviewActivity[];
 
     // Debug logging to verify counts and content coming from Supabase
     console.log('[getFriendActivity] listActivities:', listActivities?.length || 0, 'reviewActivities:', reviewActivities?.length || 0);
@@ -724,8 +759,7 @@ export const sendAnonymousMessage = async (
       code: error.code,
       message: error.message,
       details: error.details,
-      hint: error.hint,
-      status: error.status
+      hint: error.hint
     });
     throw error;
   }
