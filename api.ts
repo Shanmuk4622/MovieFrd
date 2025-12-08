@@ -154,6 +154,82 @@ export const searchMovies = async (query: string): Promise<Movie[]> => {
   }
 };
 
+// Advanced search with sorting and filtering
+export const advancedSearchMovies = async (
+  query: string,
+  sortBy: 'relevance' | 'rating' | 'popularity' | 'date' = 'relevance'
+): Promise<Movie[]> => {
+  checkApiKey();
+  try {
+    const response = await fetch(`${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`, getFetchOptions());
+    if (!response.ok) {
+      throw new Error(`Failed to search movies on TMDB: ${response.statusText}`);
+    }
+    const data = await response.json();
+    const movies: TmdbMovie[] = data.results;
+    const mappedMovies = movies.map(mapTmdbMovieToMovie);
+
+    // Sort based on selected criteria
+    mappedMovies.sort((a, b) => {
+      switch (sortBy) {
+        case 'rating':
+          return b.rating - a.rating;
+        case 'popularity':
+          return b.popularity - a.popularity;
+        case 'date':
+          const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
+          const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
+          return dateB - dateA;
+        case 'relevance':
+        default:
+          // TMDB already returns in relevance order
+          return 0;
+      }
+    });
+    
+    return mappedMovies;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
+// Search by person (actor, director, etc.)
+export const searchPerson = async (query: string): Promise<any[]> => {
+  checkApiKey();
+  try {
+    const response = await fetch(`${API_BASE_URL}/search/person?query=${encodeURIComponent(query)}`, getFetchOptions());
+    if (!response.ok) {
+      throw new Error(`Failed to search person on TMDB: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
+// Get movies by a specific person (actor/director)
+export const getMoviesByPerson = async (personId: number): Promise<Movie[]> => {
+  checkApiKey();
+  try {
+    const response = await fetch(`${API_BASE_URL}/person/${personId}/movie_credits`, getFetchOptions());
+    if (!response.ok) {
+      throw new Error(`Failed to fetch movies for person: ${response.statusText}`);
+    }
+    const data = await response.json();
+    const movies: TmdbMovie[] = data.cast || [];
+    return movies
+      .filter(m => m.poster_path) // Only include movies with posters
+      .map(mapTmdbMovieToMovie)
+      .sort((a, b) => (b.popularity - a.popularity));
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
 
 export const fetchMovieDetailsExtended = async (movieId: number): Promise<MovieDetail | null> => {
     checkApiKey();
