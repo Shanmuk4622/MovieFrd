@@ -30,6 +30,9 @@ MovieFrd brings together everything a movie enthusiast needs:
 ### 🍿 Movie Discovery & Tracking
 - **Dynamic Dashboard**: Browse popular, top-rated, and upcoming movies with beautiful card layouts
 - **Smart Search**: Search entire TMDB database with instant results and autocomplete
+  - 💡 **Live Suggestions**: See top 5 results as you type (300ms debounce)
+  - 🎯 **Advanced Sorting**: Sort by relevance, rating, popularity, or newest
+  - ⭐ **Rating Filters**: Quick filter buttons for 7+, 8+, 9+ rated movies
 - **Advanced Filtering**: Filter by rating (7+, 8+, etc.), genre, year, and more
 - **Personal Collections**: 
   - **Watched List**: Mark movies you've already seen
