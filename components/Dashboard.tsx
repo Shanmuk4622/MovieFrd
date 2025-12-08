@@ -212,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
             <div className="space-y-4">
               {friendActivity.map(activity => (
                 <ActivityCard 
-                    key={activity.id} 
+                    key={`${activity.action}-${activity.id}`}
                     activity={activity} 
                     onSelectMovie={onSelectMovie}
                     onSelectProfile={onSelectProfile}
