@@ -181,10 +181,11 @@ export const getRoomMessages = async (roomId: number): Promise<ChatMessage[]> =>
 
   const { data, error } = await supabase
     .from('room_messages')
-    .select('*, profiles(*)')
+    .select('*, profiles(id, username, avatar_url)')
     .eq('room_id', roomId)
     .gte('created_at', twelveHoursAgo) // Filter for recent messages
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(300);
   
   if (error) {
     console.error('Error fetching messages for room:', error);
@@ -197,7 +198,7 @@ export const sendMessage = async (roomId: number, senderId: string, content: str
   const { data, error } = await supabase
     .from('room_messages')
     .insert({ room_id: roomId, sender_id: senderId, content, reply_to_message_id: replyToMessageId || null })
-    .select('*, profiles(*)')
+    .select('*, profiles(id, username, avatar_url)')
     .single();
   
   if (error) {
@@ -333,10 +334,11 @@ export const getDirectMessages = async (userId1: string, userId2: string): Promi
 
     const { data, error } = await supabase
         .from('direct_messages')
-        .select('*, profiles:sender_id(*)')
+        .select('*, profiles:sender_id(id, username, avatar_url)')
         .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
         .gte('created_at', threeDaysAgo) // Filter for recent messages
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(300);
 
     if (error) {
         console.error("Error fetching DMs:", error);
@@ -349,7 +351,7 @@ export const sendDirectMessage = async (senderId: string, receiverId: string, co
     const { data, error } = await supabase
         .from('direct_messages')
         .insert({ sender_id: senderId, receiver_id: receiverId, content, reply_to_message_id: replyToMessageId || null })
-        .select('*, profiles:sender_id(*)')
+        .select('*, profiles:sender_id(id, username, avatar_url)')
         .single();
     
     if (error) {

@@ -284,47 +284,67 @@ const Chat: React.FC<ChatProps> = ({ onSelectProfile, initialUser }) => {
     if (!user || !activeConversation || !content.trim()) return;
     
     const tempId = Date.now();
+    const trimmedContent = content.trim();
+    const replyId = replyToMessage?.id || null;
     
     try {
-        // Optimistic Update
+        // Optimistic Update - immediately update UI
         if (activeConversation.type === 'room') {
             const optimisticMessage: ChatMessage = {
                 id: tempId,
                 room_id: activeConversation.id,
                 sender_id: user.id,
-                content: content.trim(),
+                content: trimmedContent,
                 created_at: new Date().toISOString(),
                 profiles: profile,
-                reply_to_message_id: replyToMessage?.id || null,
+                reply_to_message_id: replyId,
             };
             setMessages(prev => [...prev, optimisticMessage]);
             setReplyToMessage(null);
             
-            const savedMessage = await sendMessage(activeConversation.id, user.id, content.trim(), replyToMessage?.id);
-            setMessages(prev => prev.map(m => m.id === tempId ? savedMessage : m));
+            // Send to server without awaiting full response - fire and forget with error handling
+            sendMessage(activeConversation.id, user.id, trimmedContent, replyId)
+              .then(savedMessage => {
+                // Replace optimistic with real message if different
+                setMessages(prev => prev.map(m => m.id === tempId ? savedMessage : m));
+              })
+              .catch(error => {
+                console.error("Error sending message:", error);
+                // Remove optimistic message on error
+                setMessages(prev => prev.filter(m => m.id !== tempId));
+                setNotification({ message: `Failed to send message: ${error.message || 'Check permissions.'}`, type: 'error' });
+                if(replyToMessage) setReplyToMessage(replyToMessage);
+              });
 
         } else {
             const optimisticMessage: DirectMessage = {
                 id: tempId,
                 sender_id: user.id,
                 receiver_id: activeConversation.id,
-                content: content.trim(),
+                content: trimmedContent,
                 created_at: new Date().toISOString(),
                 profiles: profile,
-                reply_to_message_id: replyToMessage?.id || null,
+                reply_to_message_id: replyId,
             };
             setMessages(prev => [...prev, optimisticMessage]);
             setReplyToMessage(null);
 
-            const savedMessage = await sendDirectMessage(user.id, activeConversation.id, content.trim(), replyToMessage?.id);
-            setMessages(prev => prev.map(m => m.id === tempId ? savedMessage : m));
+            // Send to server without blocking UI
+            sendDirectMessage(user.id, activeConversation.id, trimmedContent, replyId)
+              .then(savedMessage => {
+                setMessages(prev => prev.map(m => m.id === tempId ? savedMessage : m));
+              })
+              .catch(error => {
+                console.error("Error sending DM:", error);
+                setMessages(prev => prev.filter(m => m.id !== tempId));
+                setNotification({ message: `Failed to send message: ${error.message || 'Check permissions.'}`, type: 'error' });
+                if(replyToMessage) setReplyToMessage(replyToMessage);
+              });
         }
 
     } catch (error: any) {
-        console.error("Error sending message:", error);
-        setNotification({ message: `Failed to send message: ${error.message || 'Check permissions.'}`, type: 'error' });
-        setMessages(prev => prev.filter(m => m.id !== tempId));
-        if(replyToMessage) setReplyToMessage(replyToMessage);
+        console.error("Error in handleSendMessage:", error);
+        setNotification({ message: `Failed to send message: ${error.message || 'Unknown error'}`, type: 'error' });
     }
   }, [user, profile, activeConversation, replyToMessage, setNotification]);
 
