@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
 import { Movie, UserActivity, UserMovieList } from '../types';
@@ -14,10 +14,11 @@ interface DashboardProps {
   onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
   onSelectProfile: (userId: string) => void;
+  onActivityRefreshReady?: (refreshFn: () => void) => void;
 }
 
 
-const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile, onActivityRefreshReady }) => {
   const { user } = useAuth();
   const [popularMovies, setPopularMovies] = useState<Movie[]>([]);
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
@@ -28,6 +29,69 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
 
   const [popularSort, setPopularSort] = useState<SortKey>('default');
   const [trendingSort, setTrendingSort] = useState<SortKey>('default');
+
+  // Extract activity loading to a standalone function for refresh
+  const loadFriendActivity = useCallback(async () => {
+    if (!user) return;
+
+    setLoadingActivity(true);
+    try {
+      const activitiesFromDb = await getFriendActivity(user.id);
+      
+      if (!activitiesFromDb || activitiesFromDb.length === 0) {
+        setFriendActivity([]);
+        return;
+      }
+
+      const movieIds = [...new Set(activitiesFromDb.map(a => a.tmdb_movie_id))];
+      
+      const movieDetailsPromises = movieIds.map(id => fetchMovieDetails(id));
+      const movieDetailsResults = await Promise.all(movieDetailsPromises);
+      
+      const movieDetailsMap = new Map<number, Movie>();
+      movieDetailsResults.forEach(movie => {
+        if (movie) {
+          movieDetailsMap.set(movie.id, movie);
+        }
+      });
+
+      const formattedActivities: UserActivity[] = activitiesFromDb
+        .map(activity => {
+          const movie = movieDetailsMap.get(activity.tmdb_movie_id);
+          if (!movie || !activity.profiles) {
+            return null;
+          }
+
+          // Check if this is a review activity (has rating field)
+          const isReview = 'rating' in activity;
+
+          return {
+            id: activity.id,
+            userId: activity.profiles.id,
+            userName: activity.profiles.username,
+            userAvatarUrl: activity.profiles.avatar_url || `https://i.pravatar.cc/100?u=${activity.profiles.id}`,
+            action: isReview 
+              ? 'reviewed' 
+              : (activity as FriendActivity).list_type === 'watched' 
+                ? 'watched' 
+                : 'added to watchlist',
+            movie: movie,
+            timestamp: formatTimeAgo(activity.created_at),
+            rating: isReview ? (activity as FriendReviewActivity).rating : undefined,
+            reviewText: isReview ? (activity as FriendReviewActivity).review_text || undefined : undefined,
+          };
+        })
+        .filter((activity): activity is UserActivity => activity !== null);
+
+      setFriendActivity(formattedActivities);
+
+    } catch (error) {
+      console.error("Failed to load friend activity", error);
+      setFriendActivity([]);
+    } finally {
+      setLoadingActivity(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     const loadMovies = async () => {
@@ -53,69 +117,15 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
 
   useEffect(() => {
     if (!user) return;
+    loadFriendActivity();
+  }, [user, loadFriendActivity]);
 
-    const loadRealActivity = async () => {
-      setLoadingActivity(true);
-      try {
-        const activitiesFromDb = await getFriendActivity(user.id);
-        
-        if (!activitiesFromDb || activitiesFromDb.length === 0) {
-          setFriendActivity([]);
-          return;
-        }
-
-        const movieIds = [...new Set(activitiesFromDb.map(a => a.tmdb_movie_id))];
-        
-        const movieDetailsPromises = movieIds.map(id => fetchMovieDetails(id));
-        const movieDetailsResults = await Promise.all(movieDetailsPromises);
-        
-        const movieDetailsMap = new Map<number, Movie>();
-        movieDetailsResults.forEach(movie => {
-          if (movie) {
-            movieDetailsMap.set(movie.id, movie);
-          }
-        });
-
-        const formattedActivities: UserActivity[] = activitiesFromDb
-          .map(activity => {
-            const movie = movieDetailsMap.get(activity.tmdb_movie_id);
-            if (!movie || !activity.profiles) {
-              return null;
-            }
-
-            // Check if this is a review activity (has rating field)
-            const isReview = 'rating' in activity;
-
-            return {
-              id: activity.id,
-              userId: activity.profiles.id,
-              userName: activity.profiles.username,
-              userAvatarUrl: activity.profiles.avatar_url || `https://i.pravatar.cc/100?u=${activity.profiles.id}`,
-              action: isReview 
-                ? 'reviewed' 
-                : (activity as FriendActivity).list_type === 'watched' 
-                  ? 'watched' 
-                  : 'added to watchlist',
-              movie: movie,
-              timestamp: formatTimeAgo(activity.created_at),
-              rating: isReview ? (activity as FriendReviewActivity).rating : undefined,
-              reviewText: isReview ? (activity as FriendReviewActivity).review_text || undefined : undefined,
-            };
-          })
-          .filter((activity): activity is UserActivity => activity !== null);
-
-        setFriendActivity(formattedActivities);
-
-      } catch (error) {
-        console.error("Failed to load friend activity", error);
-        setFriendActivity([]);
-      } finally {
-        setLoadingActivity(false);
-      }
-    };
-    
-    loadRealActivity();
-  }, [user]);
+  // Expose the refresh function to parent component
+  useEffect(() => {
+    if (onActivityRefreshReady) {
+      onActivityRefreshReady(loadFriendActivity);
+    }
+  }, [loadFriendActivity, onActivityRefreshReady]);
 
   const sortedPopularMovies = useMemo(() => {
     const sorted = [...popularMovies];
