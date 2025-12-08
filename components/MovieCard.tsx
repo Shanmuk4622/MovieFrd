@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 // FIX: UserMovieList is now imported from types.ts
-import { Movie, UserMovieList } from '../types';
+import { Movie, UserMovieList, MovieReview } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { addMovieToList, removeMovieFromList } from '../supabaseApi';
+import { addMovieToList, removeMovieFromList, getUserReview, addOrUpdateReview } from '../supabaseApi';
 import { StarIcon, PlusIcon, CheckIcon, XIcon } from './icons';
 import { fetchMovieDetailsExtended } from '../api';
+import ReviewModal from './ReviewModal';
 
 interface MovieCardProps {
   movie: Movie;
@@ -16,6 +17,8 @@ interface MovieCardProps {
 const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpdate, onSelectMovie }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [userReview, setUserReview] = useState<MovieReview | null>(null);
   
   const [genres, setGenres] = useState<{ id: number; name: string }[] | null>(null);
   const [loadingGenres, setLoadingGenres] = useState(false);
@@ -62,6 +65,29 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
       } finally {
         setLoadingGenres(false);
       }
+    }
+
+    // Load user's review if exists
+    if (user && !userReview) {
+      try {
+        const review = await getUserReview(user.id, movie.id);
+        setUserReview(review);
+      } catch (error) {
+        console.error("Failed to fetch user review", error);
+      }
+    }
+  };
+
+  const handleReviewSubmit = async (rating: number, reviewText: string) => {
+    if (!user) return;
+    
+    try {
+      const review = await addOrUpdateReview(user.id, movie.id, rating, reviewText);
+      setUserReview(review);
+      onListUpdate(`Review for '${movie.title}' ${userReview ? 'updated' : 'submitted'} successfully!`);
+    } catch (error) {
+      console.error("Failed to submit review", error);
+      throw error;
     }
   };
   
@@ -121,6 +147,16 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
         </div>
         
         <div className="space-y-2 w-full mt-1">
+            {/* Review Button */}
+            <button
+                onClick={() => setShowReviewModal(true)}
+                disabled={loading}
+                className="w-full flex items-center justify-center bg-purple-600/80 hover:bg-purple-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors"
+            >
+                <StarIcon className="w-4 h-4 mr-1" /> 
+                {userReview ? `Your Rating: ${userReview.rating}/10` : 'Write Review'}
+            </button>
+
             {isInWatched ? (
                 <button
                     onClick={() => handleAction('remove')}
@@ -167,6 +203,16 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
         </div>
         {loading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <ReviewModal
+          movie={movie}
+          existingReview={userReview}
+          onClose={() => setShowReviewModal(false)}
+          onSubmit={handleReviewSubmit}
+        />
+      )}
     </div>
   );
 };

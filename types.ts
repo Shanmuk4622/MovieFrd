@@ -17,14 +17,27 @@ export interface UserMovieList {
   list_type: 'watched' | 'watchlist';
 }
 
+export interface MovieReview {
+  id: number;
+  user_id: string;
+  tmdb_movie_id: number;
+  rating: number; // 1-10
+  review_text: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: Profile;
+}
+
 export interface UserActivity {
   id: number;
   userId: string;
   userName: string;
   userAvatarUrl: string;
-  action: 'watched' | 'added to watchlist';
+  action: 'watched' | 'added to watchlist' | 'reviewed';
   movie: Movie;
   timestamp: string;
+  rating?: number; // For review activities
+  reviewText?: string; // For review activities
 }
 
 export interface ChatRoom {

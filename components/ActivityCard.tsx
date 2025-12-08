@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Movie, UserActivity } from '../types';
+import { StarIcon } from './icons';
 
 interface ActivityCardProps {
   activity: UserActivity;
@@ -10,7 +11,20 @@ interface ActivityCardProps {
 }
 
 const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onSelectMovie, onSelectProfile }) => {
-  const actionText = activity.action === 'watched' ? 'finished watching' : 'added to their watchlist';
+  const getActionText = () => {
+    switch (activity.action) {
+      case 'watched':
+        return 'finished watching';
+      case 'added to watchlist':
+        return 'added to their watchlist';
+      case 'reviewed':
+        return 'reviewed';
+      default:
+        return activity.action;
+    }
+  };
+
+  const actionText = getActionText();
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 flex items-start space-x-4 shadow-md">
@@ -43,6 +57,25 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onSelectMovie, on
           </span>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{activity.timestamp}</p>
+        
+        {/* Review Rating Display */}
+        {activity.action === 'reviewed' && activity.rating && (
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center bg-yellow-400/20 dark:bg-yellow-400/30 px-2 py-1 rounded">
+              <StarIcon className="w-4 h-4 text-yellow-400 fill-yellow-400 mr-1" />
+              <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">
+                {activity.rating}/10
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Review Text Preview */}
+        {activity.action === 'reviewed' && activity.reviewText && (
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 italic line-clamp-2">
+            "{activity.reviewText}"
+          </p>
+        )}
         
         {/* Movie Section */}
         <button

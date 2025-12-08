@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 import { User, RealtimeChannel } from '@supabase/supabase-js';
 // FIX: Moved UserMovieList to types.ts and imported it from there to centralize type definitions.
-import { ChatRoom, ChatMessage, Profile, Friendship, FriendshipStatus, DirectMessage, UserMovieList } from './types';
+import { ChatRoom, ChatMessage, Profile, Friendship, FriendshipStatus, DirectMessage, UserMovieList, MovieReview } from './types';
 
 export const getProfile = async (userId: string): Promise<Profile | null> => {
   const { data, error } = await supabase
@@ -98,7 +98,11 @@ export type FriendActivity = UserMovieList & {
     profiles: Profile | null;
 };
 
-export const getFriendActivity = async (userId: string): Promise<FriendActivity[]> => {
+export type FriendReviewActivity = MovieReview & {
+    profiles: Profile;
+};
+
+export const getFriendActivity = async (userId: string): Promise<(FriendActivity | FriendReviewActivity)[]> => {
     // Step 1: Get the list of accepted friend IDs
     const { data: friendships, error: friendsError } = await supabase
         .from('friendships')
@@ -117,19 +121,126 @@ export const getFriendActivity = async (userId: string): Promise<FriendActivity[
         return [];
     }
 
-    // Step 2: Fetch the latest 20 activities from those friends, joining their profile info
-    const { data, error } = await supabase
+    // Step 2: Fetch movie list activities (watched/watchlist)
+    const { data: listActivities, error: listError } = await supabase
         .from('user_movie_lists')
         .select('*, profiles(*)')
         .in('user_id', friendIds)
         .order('created_at', { ascending: false })
         .limit(20);
 
-    if (error) {
-        console.error("Error fetching friend activity:", error);
-        throw error;
+    if (listError) {
+        console.error("Error fetching friend list activity:", listError);
     }
-    return (data as FriendActivity[]) || [];
+
+    // Step 3: Fetch review activities
+    const { data: reviewActivities, error: reviewError } = await supabase
+        .from('movie_reviews')
+        .select('*, profiles(*)')
+        .in('user_id', friendIds)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+    if (reviewError) {
+        console.error("Error fetching friend review activity:", reviewError);
+    }
+
+    // Step 4: Combine and sort by created_at
+    const allActivities = [
+        ...(listActivities || []),
+        ...(reviewActivities || [])
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return allActivities.slice(0, 20); // Return top 20 most recent
+};
+
+// --- Movie Review Functions ---
+
+export const addOrUpdateReview = async (
+  userId: string, 
+  movieId: number, 
+  rating: number, 
+  reviewText: string
+): Promise<MovieReview> => {
+  const { data, error } = await supabase
+    .from('movie_reviews')
+    .upsert(
+      { 
+        user_id: userId, 
+        tmdb_movie_id: movieId, 
+        rating, 
+        review_text: reviewText || null 
+      },
+      { onConflict: 'user_id, tmdb_movie_id' }
+    )
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('Error adding/updating review:', error);
+    throw error;
+  }
+  return data as MovieReview;
+};
+
+export const getUserReview = async (userId: string, movieId: number): Promise<MovieReview | null> => {
+  const { data, error } = await supabase
+    .from('movie_reviews')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('tmdb_movie_id', movieId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') { // Not found
+      return null;
+    }
+    console.error('Error fetching user review:', error);
+    return null;
+  }
+  return data as MovieReview;
+};
+
+export const getMovieReviews = async (movieId: number, limit: number = 10): Promise<MovieReview[]> => {
+  const { data, error } = await supabase
+    .from('movie_reviews')
+    .select('*, profiles(id, username, avatar_url)')
+    .eq('tmdb_movie_id', movieId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching movie reviews:', error);
+    return [];
+  }
+  return data as MovieReview[] || [];
+};
+
+export const deleteReview = async (userId: string, movieId: number): Promise<void> => {
+  const { error } = await supabase
+    .from('movie_reviews')
+    .delete()
+    .eq('user_id', userId)
+    .eq('tmdb_movie_id', movieId);
+
+  if (error) {
+    console.error('Error deleting review:', error);
+    throw error;
+  }
+};
+
+export const getUserReviews = async (userId: string): Promise<MovieReview[]> => {
+  const { data, error } = await supabase
+    .from('movie_reviews')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching user reviews:', error);
+    return [];
+  }
+  return data as MovieReview[] || [];
 };
 
 

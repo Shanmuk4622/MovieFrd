@@ -3,7 +3,7 @@ import MovieList from './MovieList';
 import ActivityCard from './ActivityCard';
 import { Movie, UserActivity, UserMovieList } from '../types';
 import { fetchMovies, fetchMovieDetails } from '../api';
-import { getFriendActivity } from '../supabaseApi';
+import { getFriendActivity, FriendActivity, FriendReviewActivity } from '../supabaseApi';
 import { MovieListSkeleton, ActivitySkeleton } from './skeletons';
 import { useAuth } from '../contexts/AuthContext';
 import { formatTimeAgo } from '../utils';
@@ -83,14 +83,23 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
               return null;
             }
 
+            // Check if this is a review activity (has rating field)
+            const isReview = 'rating' in activity;
+
             return {
               id: activity.id,
               userId: activity.profiles.id,
               userName: activity.profiles.username,
               userAvatarUrl: activity.profiles.avatar_url || `https://i.pravatar.cc/100?u=${activity.profiles.id}`,
-              action: activity.list_type === 'watched' ? 'watched' : 'added to watchlist',
+              action: isReview 
+                ? 'reviewed' 
+                : (activity as FriendActivity).list_type === 'watched' 
+                  ? 'watched' 
+                  : 'added to watchlist',
               movie: movie,
               timestamp: formatTimeAgo(activity.created_at),
+              rating: isReview ? (activity as FriendReviewActivity).rating : undefined,
+              reviewText: isReview ? (activity as FriendReviewActivity).review_text || undefined : undefined,
             };
           })
           .filter((activity): activity is UserActivity => activity !== null);
