@@ -8,6 +8,7 @@ import MovieList from './MovieList';
 import UserDiscovery from './UserSearch';
 import FriendList from './FriendList';
 import FriendRecommendations from './FriendRecommendations';
+import MyReviews from './MyReviews';
 import { UserIcon, SunIcon, MoonIcon, PencilIcon } from './icons';
 import { MovieListSkeleton } from './skeletons';
 
@@ -186,6 +187,9 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
                 </>
             ) : (
                 <>
+                {/* My Reviews Section */}
+                <MyReviews userId={user.id} onSelectMovie={onSelectMovie} />
+                
                 <MovieList 
                     title="My Watched List" 
                     movies={watched}

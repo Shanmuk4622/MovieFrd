@@ -149,7 +149,10 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userMovieLists, onListUpda
         <div className="space-y-2 w-full mt-1">
             {/* Review Button */}
             <button
-                onClick={() => setShowReviewModal(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowReviewModal(true);
+                }}
                 disabled={loading}
                 className="w-full flex items-center justify-center bg-purple-600/80 hover:bg-purple-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors"
             >
