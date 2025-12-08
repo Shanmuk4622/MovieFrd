@@ -37,6 +37,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userMovieLists, onListUpdate, onS
     setLoadingActivity(true);
     try {
       const activitiesFromDb = await getFriendActivity(user.id);
+      console.log('[Dashboard] activitiesFromDb count:', activitiesFromDb?.length || 0);
       
       if (!activitiesFromDb || activitiesFromDb.length === 0) {
         setFriendActivity([]);

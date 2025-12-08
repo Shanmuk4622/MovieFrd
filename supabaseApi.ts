@@ -150,10 +150,16 @@ export const getFriendActivity = async (userId: string): Promise<(FriendActivity
         console.error("Error fetching friend review activity:", reviewError);
     }
 
+    // Debug logging to verify counts and content coming from Supabase
+    console.log('[getFriendActivity] listActivities:', listActivities?.length || 0, 'reviewActivities:', reviewActivities?.length || 0);
+    if (reviewActivities && reviewActivities.length) {
+      console.log('[getFriendActivity] first review activity sample:', reviewActivities[0]);
+    }
+
     // Step 4: Combine and sort by created_at
     const allActivities = [
-        ...(listActivities || []),
-        ...(reviewActivities || [])
+      ...(listActivities || []),
+      ...(reviewActivities || [])
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     return allActivities.slice(0, 20); // Return top 20 most recent
