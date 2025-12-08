@@ -100,11 +100,29 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
       
       if (payload.eventType === 'INSERT') {
         const newMessage = payload.new as AnonymousChatMessage;
-        console.log('[AnonymousChat] Adding message to state:', newMessage);
+        
+        // Only add if it's not from current user or if it doesn't already exist
+        // (to prevent duplicates from optimistic updates)
         setMessages(prev => {
-          const updated = [...prev, newMessage];
-          console.log('[AnonymousChat] Updated messages count:', updated.length);
-          return updated;
+          const messageExists = prev.some(m => m.id === newMessage.id);
+          if (messageExists) {
+            console.log('[AnonymousChat] Message already exists, skipping:', newMessage.id);
+            return prev;
+          }
+          
+          // If message is from current user, check if we have an optimistic version
+          if (newMessage.sender_id === user?.id) {
+            const hasOptimisticVersion = prev.some(m => m.content === newMessage.content && m.sender_id === user?.id);
+            if (hasOptimisticVersion) {
+              console.log('[AnonymousChat] Message already in optimistic form, replacing');
+              return prev.map(m => 
+                m.content === newMessage.content && m.sender_id === user?.id ? newMessage : m
+              );
+            }
+          }
+          
+          console.log('[AnonymousChat] Adding new message:', newMessage);
+          return [...prev, newMessage];
         });
       }
     });
@@ -170,9 +188,12 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
     
     console.log('[AnonymousChat] Sending message:', content);
     
+    // Use a reference to track this message to avoid duplicates
+    const messageReference = `msg-${Date.now()}-${Math.random()}`;
+    
     // Optimistic update - add message immediately
     const optimisticMessage: AnonymousChatMessage = {
-      id: 'temp-' + Date.now(),
+      id: messageReference, // Use reference instead of temp-ID
       session_id: session.session_id,
       sender_id: user?.id || '',
       content,
@@ -185,14 +206,15 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
     try {
       const result = await sendAnonymousMessage(session.session_id, content);
       console.log('[AnonymousChat] Message API result:', result);
-      if (result && result.id && result.id !== optimisticMessage.id) {
+      if (result && result.id) {
         // Replace temporary message with actual message from server
-        setMessages(prev => prev.map(m => m.id === optimisticMessage.id ? result : m));
+        console.log('[AnonymousChat] Replacing optimistic message', messageReference, 'with real ID', result.id);
+        setMessages(prev => prev.map(m => m.id === messageReference ? result : m));
       }
     } catch (error) {
       console.error('[AnonymousChat] Failed to send message:', error);
       // Remove optimistic message on error
-      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+      setMessages(prev => prev.filter(m => m.id !== messageReference));
     }
   };
 
