@@ -61,7 +61,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({ movie, existingReview, onClos
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
       onClick={handleBackdropClick}
     >
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 // FIX: UserMovieList is now imported from types.ts
-import { MovieDetail as MovieDetailType, UserMovieList } from '../types';
+import { MovieDetail as MovieDetailType, UserMovieList, MovieReview } from '../types';
 import { fetchMovieDetailsExtended } from '../api';
 import { StarIcon, UserIcon, XIcon, PlusIcon, CheckIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
-import { addMovieToList, removeMovieFromList } from '../supabaseApi';
+import { addMovieToList, removeMovieFromList, getUserReview, addOrUpdateReview } from '../supabaseApi';
 import { formatTimeAgo } from '../utils';
+import ReviewModal from './ReviewModal';
 
 interface MovieDetailProps {
     movieId: number;
@@ -22,6 +23,8 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
     const { user } = useAuth();
     const [loadingAction, setLoadingAction] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [userReview, setUserReview] = useState<MovieReview | null>(null);
 
     useEffect(() => {
         const loadDetails = async () => {
@@ -31,7 +34,15 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
                 const details = await fetchMovieDetailsExtended(movieId);
                 if (details) {
                     setMovie(details);
-                } else {
+                }
+                
+                // Load user's review if logged in
+                if (user) {
+                    const review = await getUserReview(user.id, movieId);
+                    setUserReview(review);
+                }
+                
+                if (!details) {
                     setError("Could not find details for this movie.");
                 }
             } catch (err) {
@@ -46,7 +57,7 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
             }
         };
         loadDetails();
-    }, [movieId]);
+    }, [movieId, user]);
 
     // Effect to handle 'Escape' key press to close modal
     useEffect(() => {
@@ -87,6 +98,19 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
             console.error("Failed to update list from details", error);
         } finally {
             setLoadingAction(false);
+        }
+    };
+
+    const handleReviewSubmit = async (rating: number, reviewText: string) => {
+        if (!user || !movie) return;
+        
+        try {
+            const review = await addOrUpdateReview(user.id, movieId, rating, reviewText);
+            setUserReview(review);
+            onListUpdate(`Review for '${movie.title}' ${userReview ? 'updated' : 'submitted'} successfully!`);
+        } catch (error) {
+            console.error("Failed to submit review", error);
+            throw error;
         }
     };
 
@@ -136,6 +160,16 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
                         <div className="flex items-center justify-between mt-6 mb-2">
                           <h2 className="text-xl font-semibold border-l-4 border-red-500 pl-3">Synopsis</h2>
                           <div className="flex items-center space-x-2">
+                            {/* Review Button */}
+                            <button
+                              onClick={() => setShowReviewModal(true)}
+                              disabled={loadingAction}
+                              className="flex items-center justify-center bg-purple-600/80 hover:bg-purple-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
+                            >
+                              <StarIcon className="w-4 h-4 mr-1" /> 
+                              {userReview ? `${userReview.rating}/10` : 'Write Review'}
+                            </button>
+                            
                             {isInWatched ? (
                               <button
                                 onClick={() => handleAction('remove')}
@@ -291,27 +325,46 @@ const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLi
     };
 
     return (
-        <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in"
-            onClick={onClose}
-            role="dialog"
-            aria-modal="true"
-        >
+        <>
             <div 
-                ref={containerRef}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-auto max-h-[90vh] overflow-y-auto relative scroll-smooth"
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in"
+                onClick={onClose}
+                role="dialog"
+                aria-modal="true"
             >
-                <button 
-                    onClick={onClose} 
-                    className="absolute top-3 right-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 z-10 transition-colors"
-                    aria-label="Close movie details"
+                <div 
+                    ref={containerRef}
+                    className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-auto max-h-[90vh] overflow-y-auto relative scroll-smooth"
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <XIcon className="w-5 h-5" />
-                </button>
-                {renderContent()}
+                    <button 
+                        onClick={onClose} 
+                        className="absolute top-3 right-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 z-10 transition-colors"
+                        aria-label="Close movie details"
+                    >
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                    {renderContent()}
+                </div>
             </div>
-        </div>
+
+            {/* Review Modal */}
+            {showReviewModal && movie && (
+                <ReviewModal
+                    movie={{
+                        id: movie.id,
+                        title: movie.title,
+                        posterUrl: movie.posterUrl,
+                        rating: movie.rating,
+                        releaseDate: movie.releaseDate,
+                        popularity: movie.popularity
+                    }}
+                    existingReview={userReview}
+                    onClose={() => setShowReviewModal(false)}
+                    onSubmit={handleReviewSubmit}
+                />
+            )}
+        </>
     );
 };
 
