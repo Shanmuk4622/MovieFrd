@@ -1,10 +1,8 @@
 import { Movie, MovieDetail, CastMember, Review } from './types';
 
-// --- Hardcoded TMDB API Key for Development ---
-// WARNING: This token is provided for development purposes in an environment
-// where setting environment variables is not feasible. For any production deployment,
-// this value MUST be replaced with a secure environment variable.
-const TMDB_API_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIwZDExYjAzM2Y3YjQ4ZTdjNzlkMjBlZDRmYzFiNzI4MSIsIm5iZiI6MTc2MTYzNzc5NC42MzYsInN1YiI6IjY5MDA3NWEyYjNjZDBjNjY1MWEzMTQ5YSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.m2CLiwb_qCkf5cjyfxyIqIemyNpUvK3mwLKE7r2TZ1o';
+// --- TMDB API Key ---
+// Primary value is read from environment variable; falls back to development default if not set.
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIwZDExYjAzM2Y3YjQ4ZTdjNzlkMjBlZDRmYzFiNzI4MSIsIm5iZiI6MTc2MTYzNzc5NC42MzYsInN1YiI6IjY5MDA3NWEyYjNjZDBjNjY1MWEzMTQ5YSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.m2CLiwb_qCkf5cjyfxyIqIemyNpUvK3mwLKE7r2TZ1o';
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const IMAGE_BASE_URL_W200 = 'https://image.tmdb.org/t/p/w200';
