@@ -3,6 +3,7 @@ import { User } from '@supabase/supabase-js';
 import { getAllUsers, sendFriendRequest } from '../supabaseApi';
 import { Profile, Friendship } from '../types';
 import { SearchIcon, UserAddIcon, CheckIcon } from './icons';
+import { Avatar, Input, Spinner } from './ui';
 
 interface UserDiscoveryProps {
   currentUser: User;
@@ -15,111 +16,101 @@ const UserDiscovery: React.FC<UserDiscoveryProps> = ({ currentUser, friendships,
   const [allUsers, setAllUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sendingRequestId, setSendingRequestId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAllUsers = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const users = await getAllUsers(currentUser.id);
-            setAllUsers(users);
-        } catch (err) {
-            console.error("Failed to fetch users", err);
-            setError("Could not load user list.");
-        } finally {
-            setLoading(false);
-        }
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        setAllUsers(await getAllUsers(currentUser.id));
+      } catch (err) {
+        console.error('Failed to fetch users', err);
+        setError('Could not load user list.');
+      } finally {
+        setLoading(false);
+      }
     };
-    fetchAllUsers();
+    load();
   }, [currentUser.id]);
 
   const filteredUsers = useMemo(() => {
-    if (!query) {
-      return allUsers;
-    }
-    return allUsers.filter(user => 
-      user.username.toLowerCase().includes(query.toLowerCase())
-    );
+    if (!query) return allUsers;
+    return allUsers.filter((u) => u.username.toLowerCase().includes(query.toLowerCase()));
   }, [query, allUsers]);
 
   const handleSendRequest = async (addresseeId: string) => {
     setError(null);
-    setSendingRequestId(addresseeId);
+    setSendingId(addresseeId);
     try {
       await sendFriendRequest(currentUser.id, addresseeId);
-      onFriendAction(); // Refresh friendships in parent
+      onFriendAction();
     } catch (err: any) {
-      console.error("Failed to send friend request", err);
-      if (err.message && err.message.includes('security policy')) {
-          setError("Database permission denied. Please check Row Level Security policies for the 'friendships' table.");
-      } else {
-          setError(err.message || "An unknown error occurred while sending the friend request.");
-      }
+      console.error('Failed to send friend request', err);
+      setError(
+        err.message?.includes('security policy')
+          ? "Database permission denied. Check the 'friendships' table RLS policies."
+          : err.message || 'An unknown error occurred while sending the friend request.'
+      );
     } finally {
-        setSendingRequestId(null);
+      setSendingId(null);
     }
   };
 
-  const getFriendshipStatus = (userId: string) => {
-    const friendship = friendships.find(f => 
-      (f.requester_id === userId && f.addressee_id === currentUser.id) ||
-      (f.requester_id === currentUser.id && f.addressee_id === userId)
-    );
-    return friendship?.status;
-  };
+  const statusFor = (userId: string) =>
+    friendships.find(
+      (f) =>
+        (f.requester_id === userId && f.addressee_id === currentUser.id) ||
+        (f.requester_id === currentUser.id && f.addressee_id === userId)
+    )?.status;
 
   return (
     <div>
-      <h3 className="text-lg font-bold mb-3">Find Friends</h3>
-      <div className="relative">
-        <input
-          type="text"
-          placeholder="Search all users..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-md py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-red-500"
-        />
-        <div className="absolute left-3 top-1/2 -translate-y-1/2">
-            <SearchIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-        </div>
-      </div>
+      <h3 className="mb-3 text-lg font-bold">Find Friends</h3>
+      <Input
+        type="text"
+        placeholder="Search all users…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        leftIcon={<SearchIcon className="h-5 w-5" />}
+      />
 
-      {error && <div className="mt-2 text-sm text-red-400 bg-red-500/10 p-2 rounded-md">{error}</div>}
+      {error && <div className="mt-2 rounded-xl bg-brand-500/10 p-2 text-sm text-brand-500">{error}</div>}
 
-      <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
+      <div className="mt-4 max-h-60 space-y-2 overflow-y-auto scrollbar-thin">
         {loading ? (
-            <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">Loading users...</div>
+          <div className="py-4 text-center text-sm text-surface-500 dark:text-surface-400">Loading users…</div>
         ) : filteredUsers.length > 0 ? (
-            filteredUsers.map(user => {
-            const status = getFriendshipStatus(user.id);
-            const isSending = sendingRequestId === user.id;
+          filteredUsers.map((user) => {
+            const status = statusFor(user.id);
+            const isSending = sendingId === user.id;
             return (
-                <div key={user.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md">
-                <span className="font-semibold text-sm truncate pr-2">{user.username}</span>
+              <div key={user.id} className="flex items-center justify-between gap-2 rounded-xl bg-surface-100 p-2 dark:bg-surface-800/60">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Avatar src={user.avatar_url} name={user.username} size="h-8 w-8" />
+                  <span className="truncate text-sm font-semibold">{user.username}</span>
+                </div>
                 {status === 'accepted' ? (
-                    <span className="text-xs font-bold text-green-400 flex items-center flex-shrink-0"><CheckIcon className="w-4 h-4 mr-1"/> Friends</span>
+                  <span className="flex flex-shrink-0 items-center gap-1 text-xs font-bold text-emerald-500">
+                    <CheckIcon className="h-4 w-4" /> Friends
+                  </span>
                 ) : status === 'pending' ? (
-                    <span className="text-xs font-bold text-yellow-400 flex-shrink-0">Pending</span>
+                  <span className="flex-shrink-0 text-xs font-bold text-amber-500">Pending</span>
                 ) : (
-                    <button 
+                  <button
                     onClick={() => handleSendRequest(user.id)}
                     disabled={isSending}
-                    className="bg-red-600 hover:bg-red-700 p-1 rounded-full text-white w-6 h-6 flex items-center justify-center flex-shrink-0 disabled:bg-gray-500 disabled:cursor-wait"
+                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-colors hover:bg-brand-500 disabled:bg-surface-400"
                     aria-label={`Send friend request to ${user.username}`}
-                    >
-                    {isSending ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div>
-                    ) : (
-                        <UserAddIcon className="w-4 h-4" />
-                    )}
-                    </button>
+                  >
+                    {isSending ? <Spinner size="h-4 w-4" /> : <UserAddIcon className="h-4 w-4" />}
+                  </button>
                 )}
-                </div>
+              </div>
             );
-            })
+          })
         ) : (
-            <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">No users found.</div>
+          <div className="py-4 text-center text-sm text-surface-500 dark:text-surface-400">No users found.</div>
         )}
       </div>
     </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LogoIcon } from './icons';
+import { Button, Input } from './ui';
 
 const Auth: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -22,114 +23,91 @@ const Auth: React.FC = () => {
     try {
       if (isSignUp) {
         if (username.length < 3) {
-            setError("Username must be at least 3 characters long.");
-            setLoading(false);
-            return;
+          setError('Username must be at least 3 characters long.');
+          setLoading(false);
+          return;
         }
-        const { error } = await signUp({
-          email,
-          password,
-          options: {
-            data: {
-              username: username,
-            }
-          }
-        });
+        const { error } = await signUp({ email, password, options: { data: { username } } });
         if (error) throw error;
-        setMessage("Check your email for the confirmation link!");
+        setMessage('Check your email for the confirmation link!');
       } else {
         const { error } = await signIn({ email, password });
         if (error) throw error;
-        // The onAuthStateChange listener in AuthContext will handle the redirect
       }
-    } catch (error: any) {
-      setError(error.error_description || error.message);
+    } catch (err: any) {
+      setError(err.error_description || err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-            <div className="flex items-center justify-center space-x-3">
-                <LogoIcon className="w-10 h-10" />
-                <h1 className="text-4xl font-bold tracking-wider text-gray-900 dark:text-white">MovieFrd</h1>
-            </div>
-            <p className="text-gray-500 dark:text-gray-400 mt-2">Join the VITAP movie community.</p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface-50 p-4 dark:bg-surface-950">
+      {/* Ambient cinematic glow */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-brand-600/20 blur-3xl" />
+
+      <div className="relative w-full max-w-md">
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3">
+            <LogoIcon className="h-11 w-11" />
+            <h1 className="text-4xl font-extrabold tracking-tight text-surface-900 dark:text-white">
+              MovieFrd
+            </h1>
+          </div>
+          <p className="mt-2 text-surface-500 dark:text-surface-400">Join the VITAP movie community.</p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl shadow-gray-300 dark:shadow-black/30">
-          <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">
-            {isSignUp ? 'Create Your Account' : 'Welcome Back'}
+        <div className="card-surface p-8">
+          <h2 className="mb-6 text-center text-2xl font-bold text-surface-900 dark:text-white">
+            {isSignUp ? 'Create your account' : 'Welcome back'}
           </h2>
-          
-          {error && <p className="bg-red-500/20 text-red-400 text-center p-3 rounded-md mb-4 text-sm">{error}</p>}
-          {message && <p className="bg-green-500/20 text-green-400 text-center p-3 rounded-md mb-4 text-sm">{message}</p>}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <p className="mb-4 rounded-xl bg-brand-500/15 p-3 text-center text-sm text-brand-600 dark:text-brand-300">
+              {error}
+            </p>
+          )}
+          {message && (
+            <p className="mb-4 rounded-xl bg-emerald-500/15 p-3 text-center text-sm text-emerald-600 dark:text-emerald-300">
+              {message}
+            </p>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
             {isSignUp && (
               <div>
-                <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="username">
+                <label className="mb-1.5 block text-sm font-semibold text-surface-500 dark:text-surface-400" htmlFor="username">
                   Username
                 </label>
-                <input
-                  id="username"
-                  className="w-full p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                />
+                <Input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
               </div>
             )}
             <div>
-              <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="email">
+              <label className="mb-1.5 block text-sm font-semibold text-surface-500 dark:text-surface-400" htmlFor="email">
                 Email
               </label>
-              <input
-                id="email"
-                className="w-full p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div>
-              <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="password">
+              <label className="mb-1.5 block text-sm font-semibold text-surface-500 dark:text-surface-400" htmlFor="password">
                 Password
               </label>
-              <input
-                id="password"
-                className="w-full p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors disabled:bg-red-800 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
-              </button>
-            </div>
+            <Button type="submit" fullWidth size="lg" isLoading={loading}>
+              {isSignUp ? 'Sign Up' : 'Sign In'}
+            </Button>
           </form>
 
-          <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-6">
+          <p className="mt-6 text-center text-sm text-surface-500 dark:text-surface-400">
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}
             <button
               onClick={() => {
-                setIsSignUp(!isSignUp);
+                setIsSignUp((v) => !v);
                 setError(null);
                 setMessage(null);
               }}
-              className="font-bold text-red-500 hover:underline ml-1"
+              className="ml-1 font-bold text-brand-500 hover:underline"
             >
               {isSignUp ? 'Sign In' : 'Sign Up'}
             </button>

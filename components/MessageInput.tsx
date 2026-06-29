@@ -5,99 +5,86 @@ import { ChatMessage, DirectMessage } from '../types';
 interface MessageInputProps {
   onSendMessage: (content: string) => void;
   onTyping: (isTyping: boolean) => void;
-  replyToMessage: ChatMessage | DirectMessage | null;
-  onCancelReply: () => void;
-  isAnonymousChat: boolean;
+  replyToMessage?: ChatMessage | DirectMessage | null;
+  onCancelReply?: () => void;
+  isAnonymousChat?: boolean;
+  placeholder?: string;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onTyping, replyToMessage, onCancelReply, isAnonymousChat }) => {
+const MessageInput: React.FC<MessageInputProps> = ({
+  onSendMessage,
+  onTyping,
+  replyToMessage,
+  onCancelReply,
+  isAnonymousChat,
+  placeholder = 'Type a message…',
+}) => {
   const [content, setContent] = useState('');
-  const typingTimeoutRef = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (replyToMessage) {
-      inputRef.current?.focus();
-    }
+    if (replyToMessage) inputRef.current?.focus();
   }, [replyToMessage]);
 
   useEffect(() => {
-    if (content) {
-      onTyping(true);
-    }
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = window.setTimeout(() => {
-      onTyping(false);
-    }, 3000); // Stop typing after 3 seconds of inactivity
-
+    if (content) onTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => onTyping(false), 3000);
     return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [content, onTyping]);
-  
-  // Ensure we send a 'stopped-typing' event when the component unmounts
-  useEffect(() => {
-    return () => {
-      onTyping(false);
-    };
-  }, [onTyping]);
+
+  useEffect(() => () => onTyping(false), [onTyping]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (content.trim()) {
-      onTyping(false); // Stop typing immediately on send
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      onSendMessage(content);
-      setContent('');
-    }
-  };
-  
-  const getReplyDisplayName = () => {
-    if (!replyToMessage) return '';
-    if (isAnonymousChat) return 'an anonymous user';
-    return replyToMessage.profiles?.username || 'Unknown User';
+    if (!content.trim()) return;
+    onTyping(false);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    onSendMessage(content);
+    setContent('');
   };
 
+  const replyName = !replyToMessage
+    ? ''
+    : isAnonymousChat
+      ? 'an anonymous user'
+      : replyToMessage.profiles?.username || 'Unknown User';
+
   return (
-    <div className="sticky bottom-0 z-30 p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700/50 flex-shrink-0">
+    <div className="sticky bottom-0 z-30 flex-shrink-0 border-t border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-900">
       {replyToMessage && (
-        <div className="bg-gray-100 dark:bg-gray-700/50 p-2 rounded-t-lg flex justify-between items-center text-sm mb-2 animate-fade-in">
+        <div className="mb-2 flex animate-fade-in items-center justify-between gap-2 rounded-xl bg-surface-100 p-2 text-sm dark:bg-surface-800/60">
           <div className="min-w-0">
-            <p className="text-gray-500 dark:text-gray-400">
-              Replying to <span className="font-bold text-gray-800 dark:text-gray-200">{getReplyDisplayName()}</span>
+            <p className="text-surface-500 dark:text-surface-400">
+              Replying to <span className="font-bold text-surface-800 dark:text-surface-200">{replyName}</span>
             </p>
-            <p className="text-gray-600 dark:text-gray-300 truncate">
-              {replyToMessage.content}
-            </p>
+            <p className="truncate text-surface-600 dark:text-surface-300">{replyToMessage.content}</p>
           </div>
-          <button onClick={onCancelReply} className="p-1 text-gray-500 hover:text-red-500 flex-shrink-0 ml-2" aria-label="Cancel reply">
-            <XIcon className="w-5 h-5" />
+          <button onClick={onCancelReply} className="flex-shrink-0 p-1 text-surface-500 hover:text-brand-500" aria-label="Cancel reply">
+            <XIcon className="h-5 w-5" />
           </button>
         </div>
       )}
-      <form onSubmit={handleSubmit} className="flex items-center space-x-3">
+      <form onSubmit={handleSubmit} className="flex items-center gap-3">
         <input
           ref={inputRef}
           type="text"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Type a message..."
-          className={`flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 ${replyToMessage ? 'rounded-b-lg' : 'rounded-lg'}`}
+          placeholder={placeholder}
           autoComplete="off"
+          className="flex-1 rounded-xl bg-surface-100 px-4 py-2.5 text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-surface-800 dark:text-white dark:placeholder-surface-500"
         />
         <button
           type="submit"
-          className="bg-red-600 hover:bg-red-700 text-white font-bold p-2.5 rounded-lg transition-colors disabled:opacity-50"
           disabled={!content.trim()}
-          aria-label="Send Message"
+          className="flex items-center justify-center rounded-xl bg-brand-600 p-2.5 text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
+          aria-label="Send message"
         >
-          <PaperAirplaneIcon className="w-5 h-5" />
+          <PaperAirplaneIcon className="h-5 w-5" />
         </button>
       </form>
     </div>

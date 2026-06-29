@@ -1,20 +1,31 @@
-// Lightweight event bus based on DOM EventTarget for inter-component realtime events
+// Lightweight typed event bus built on the DOM EventTarget, used to fan out
+// realtime database events from RealtimeContext to interested components.
+
+export interface RealtimeMessageEvent {
+  table: 'direct_messages' | 'room_messages';
+  eventType: string;
+  new: any;
+  old: any;
+}
+
+export interface RoomCreatedEvent {
+  room: any;
+}
+
+interface EventMap {
+  'realtime:message': RealtimeMessageEvent;
+  'realtime:room_created': RoomCreatedEvent;
+}
+
 const bus = new EventTarget();
 
 export const eventBus = {
-  addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => bus.addEventListener(type, listener),
-  removeEventListener: (type: string, listener: EventListenerOrEventListenerObject) => bus.removeEventListener(type, listener),
-  dispatch: (type: string, detail?: any) => {
-    try {
-      // lightweight logging for debugging realtime flow
-      // keep logs minimal to avoid noise in production
-      // eslint-disable-next-line no-console
-      console.debug('[eventBus] dispatch', type, detail ? { ...detail, new: detail.new ? { ...detail.new, content: String(detail.new.content).slice(0, 80) } : undefined } : undefined);
-    } catch (e) {
-      // ignore logging errors
-    }
-    return bus.dispatchEvent(new CustomEvent(type, { detail }));
-  },
+  addEventListener: (type: keyof EventMap, listener: EventListener) =>
+    bus.addEventListener(type, listener),
+  removeEventListener: (type: keyof EventMap, listener: EventListener) =>
+    bus.removeEventListener(type, listener),
+  dispatch: <K extends keyof EventMap>(type: K, detail?: EventMap[K]) =>
+    bus.dispatchEvent(new CustomEvent(type, { detail })),
 };
 
 export default eventBus;

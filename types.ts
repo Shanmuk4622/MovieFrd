@@ -1,4 +1,7 @@
-
+// ---------------------------------------------------------------------------
+// Shared domain types. Field names mirror the Supabase schema and the TMDB
+// mapping in api.ts — do not rename DB-backed fields without a migration.
+// ---------------------------------------------------------------------------
 
 export interface Movie {
   id: number;
@@ -9,12 +12,13 @@ export interface Movie {
   popularity: number;
 }
 
-// FIX: Moved UserMovieList from supabaseApi.ts to centralize types and fix import error.
+export type ListType = 'watched' | 'watchlist';
+
 export interface UserMovieList {
   id: number;
   user_id: string;
   tmdb_movie_id: number;
-  list_type: 'watched' | 'watchlist';
+  list_type: ListType;
 }
 
 export interface MovieReview {
@@ -25,19 +29,21 @@ export interface MovieReview {
   review_text: string | null;
   created_at: string;
   updated_at: string;
-  profiles?: Profile;
+  profiles?: Profile | null;
 }
+
+export type ActivityAction = 'watched' | 'added to watchlist' | 'reviewed';
 
 export interface UserActivity {
   id: number;
   userId: string;
   userName: string;
-  userAvatarUrl: string;
-  action: 'watched' | 'added to watchlist' | 'reviewed';
+  userAvatarUrl: string | null;
+  action: ActivityAction;
   movie: Movie;
   timestamp: string;
-  rating?: number; // For review activities
-  reviewText?: string; // For review activities
+  rating?: number; // review activities only
+  reviewText?: string; // review activities only
 }
 
 export interface ChatRoom {
@@ -58,7 +64,7 @@ export interface ChatMessage {
   reply_to_message_id: number | null;
 }
 
-// --- New Types for Friendship and DMs ---
+// --- Friendship & direct messages ---
 
 export type FriendshipStatus = 'pending' | 'accepted' | 'declined' | 'blocked';
 
@@ -73,7 +79,6 @@ export interface Friendship {
   requester_id: string;
   addressee_id: string;
   status: FriendshipStatus;
-  // The profiles object will be joined in our queries
   requester: Profile;
   addressee: Profile;
 }
@@ -84,13 +89,12 @@ export interface DirectMessage {
   receiver_id: string;
   content: string;
   created_at: string;
-  // This will be joined for displaying sender info
   profiles: Profile | null;
   seen_by?: string[];
   reply_to_message_id: number | null;
 }
 
-// --- Types for Movie Detail View ---
+// --- Movie detail view ---
 
 export interface CastMember {
   id: number;
@@ -108,7 +112,8 @@ export interface Review {
   avatarUrl: string | null;
 }
 
-export interface MovieDetail extends Movie {
+// Renamed from `MovieDetail` to avoid colliding with the `MovieDetail` component.
+export interface MovieDetailData extends Movie {
   overview: string;
   releaseDate: string;
   genres: { id: number; name: string }[];
@@ -118,7 +123,8 @@ export interface MovieDetail extends Movie {
   reviews: Review[];
 }
 
-// --- Anonymous Chat Types ---
+// --- Anonymous chat ---
+
 export type AnonymousChatStatus = 'waiting' | 'paired' | 'ended';
 
 export interface AnonymousChatSession {
@@ -134,7 +140,7 @@ export interface AnonymousChatSession {
 }
 
 export interface AnonymousChatMessage {
-  id: number;
+  id: number | string; // server rows use numeric/uuid ids; optimistic ones use a temp string
   session_id: string;
   sender_id: string;
   content: string;
@@ -150,4 +156,14 @@ export interface AnonymousChatArchive {
   started_at: string;
   ended_at: string;
   duration_minutes: number;
+}
+
+// --- App-wide UI types ---
+
+export type NotificationType = 'success' | 'info' | 'dm' | 'error';
+
+export interface AppNotification {
+  message: string;
+  type: NotificationType;
+  senderProfile?: Profile;
 }

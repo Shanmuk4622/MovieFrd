@@ -1,21 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Profile, Movie, UserMovieList, Friendship } from '../types';
+import { Profile, Movie, UserMovieList } from '../types';
 import { getProfile, getUserMovieLists, getFriendships } from '../supabaseApi';
 import { fetchMovieDetails } from '../api';
 import MovieList from './MovieList';
-import { UserIcon, XIcon } from './icons';
+import { Avatar, Modal, Spinner } from './ui';
 
 interface UserProfileModalProps {
   userId: string;
   onClose: () => void;
-  // Props for nested MovieList interactivity
   currentUserMovieLists: UserMovieList[];
   onListUpdate: (message: string) => void;
   onSelectMovie: (movieId: number) => void;
   onSelectProfile: (userId: string) => void;
 }
 
-const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, currentUserMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
+const fetchMoviesInChunks = async (ids: number[]): Promise<Movie[]> => {
+  const all: Movie[] = [];
+  const chunkSize = 10;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const movies = await Promise.all(chunk.map((id) => fetchMovieDetails(id)));
+    all.push(...movies.filter((m): m is Movie => m !== null));
+  }
+  return all;
+};
+
+const UserProfileModal: React.FC<UserProfileModalProps> = ({
+  userId,
+  onClose,
+  currentUserMovieLists,
+  onListUpdate,
+  onSelectMovie,
+  onSelectProfile,
+}) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [watched, setWatched] = useState<Movie[]>([]);
   const [watchlist, setWatchlist] = useState<Movie[]>([]);
@@ -24,165 +41,95 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onClose, cu
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchMoviesInChunks = async (ids: number[]): Promise<Movie[]> => {
-        const allMovies: Movie[] = [];
-        const chunkSize = 10; // Fetch 10 movies at a time
-        for (let i = 0; i < ids.length; i += chunkSize) {
-            const chunkIds = ids.slice(i, i + chunkSize);
-            const moviePromises = chunkIds.map(id => fetchMovieDetails(id));
-            const moviesInChunk = await Promise.all(moviePromises);
-            allMovies.push(...moviesInChunk.filter((m): m is Movie => m !== null));
-        }
-        return allMovies;
-    };
-    
-    const loadUserProfile = async () => {
+    const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const [userProfile, movieLists, friendshipsData] = await Promise.all([
-            getProfile(userId),
-            getUserMovieLists(userId),
-            getFriendships(userId)
+        const [userProfile, movieLists, friendships] = await Promise.all([
+          getProfile(userId),
+          getUserMovieLists(userId),
+          getFriendships(userId),
         ]);
-
-        if (!userProfile) {
-          throw new Error("User profile not found.");
-        }
+        if (!userProfile) throw new Error('User profile not found.');
         setProfile(userProfile);
 
-        const watchedIds = movieLists.filter(item => item.list_type === 'watched').map(item => item.tmdb_movie_id);
-        const watchlistIds = movieLists.filter(item => item.list_type === 'watchlist').map(item => item.tmdb_movie_id);
+        const watchedIds = movieLists.filter((i) => i.list_type === 'watched').map((i) => i.tmdb_movie_id);
+        const watchlistIds = movieLists.filter((i) => i.list_type === 'watchlist').map((i) => i.tmdb_movie_id);
 
         const [watchedMovies, watchlistMovies] = await Promise.all([
           fetchMoviesInChunks(watchedIds),
-          fetchMoviesInChunks(watchlistIds)
+          fetchMoviesInChunks(watchlistIds),
         ]);
-        
-        const userFriends = friendshipsData
-            .filter(f => f.status === 'accepted')
-            .map(f => f.requester_id === userId ? f.addressee : f.requester);
-        
-        setFriends(userFriends);
+
+        setFriends(
+          friendships
+            .filter((f) => f.status === 'accepted')
+            .map((f) => (f.requester_id === userId ? f.addressee : f.requester))
+        );
         setWatched(watchedMovies);
         setWatchlist(watchlistMovies);
-
       } catch (err: any) {
-        setError(err.message || "Failed to load user profile.");
+        setError(err.message || 'Failed to load user profile.');
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
-
-    if (userId) {
-      loadUserProfile();
-    }
+    if (userId) load();
   }, [userId]);
-  
-  // Effect to handle 'Escape' key press to close modal
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onClose]);
 
-  const renderContent = () => {
-    if (loading) {
-      return <div className="flex items-center justify-center h-[50vh]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div></div>;
-    }
-
-    if (error || !profile) {
-      return <div className="text-center p-8 text-red-400">{error || "User not found."}</div>;
-    }
-
-    return (
-      <div className="p-4 sm:p-6">
-        <div className="flex items-center space-x-4 mb-8">
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover shadow-lg" />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-              <UserIcon className="w-12 h-12 text-gray-500 dark:text-gray-400" />
-            </div>
-          )}
-          <div>
+  return (
+    <Modal isOpen onClose={onClose} maxWidth="max-w-4xl">
+      {loading ? (
+        <div className="flex h-[50vh] items-center justify-center">
+          <Spinner size="h-12 w-12" className="text-brand-500" />
+        </div>
+      ) : error || !profile ? (
+        <div className="p-8 text-center text-brand-500">{error || 'User not found.'}</div>
+      ) : (
+        <div className="p-4 sm:p-6">
+          <div className="mb-8 flex items-center gap-4">
+            <Avatar src={profile.avatar_url} name={profile.username} size="h-20 w-20" />
             <h1 className="text-3xl font-bold">{profile.username}</h1>
           </div>
-        </div>
-        
-        <MovieList
+
+          <MovieList
             title={`${profile.username}'s Watched List`}
             movies={watched}
             userMovieLists={currentUserMovieLists}
             onListUpdate={onListUpdate}
             onSelectMovie={onSelectMovie}
-        />
-        <MovieList
+          />
+          <MovieList
             title={`${profile.username}'s Watchlist`}
             movies={watchlist}
             userMovieLists={currentUserMovieLists}
             onListUpdate={onListUpdate}
             onSelectMovie={onSelectMovie}
-        />
-        <div className="mt-8">
-            <h2 className="text-2xl md:text-3xl font-bold mb-4 px-4 md:px-0">{`${profile.username}'s Friends`}</h2>
-            {friends.length > 0 ? (
-                <div className="px-4 md:px-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {friends.map(friend => (
-                        <button 
-                          key={friend.id} 
-                          onClick={() => onSelectProfile(friend.id)}
-                          className="flex items-center space-x-3 bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg text-left w-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                        >
-                            {friend.avatar_url ? (
-                                <img src={friend.avatar_url} alt={friend.username} className="w-10 h-10 rounded-full object-cover"/>
-                            ) : (
-                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0">
-                                    <UserIcon className="w-6 h-6 text-gray-500 dark:text-gray-400"/>
-                                </div>
-                            )}
-                            <span className="font-semibold truncate">{friend.username}</span>
-                        </button>
-                    ))}
-                </div>
-            ) : (
-                <div className="px-4 md:px-0 text-gray-500 dark:text-gray-400">
-                    This list is currently empty.
-                </div>
-            )}
-        </div>
-      </div>
-    );
-  };
+          />
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl h-auto max-h-[90vh] overflow-y-auto relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 z-10 transition-colors"
-          aria-label="Close user profile"
-        >
-          <XIcon className="w-5 h-5" />
-        </button>
-        {renderContent()}
-      </div>
-    </div>
+          <div className="mt-8">
+            <h2 className="mb-4 px-4 text-2xl font-bold md:px-0 md:text-3xl">{profile.username}'s Friends</h2>
+            {friends.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 px-4 sm:grid-cols-2 md:px-0 lg:grid-cols-3">
+                {friends.map((friend) => (
+                  <button
+                    key={friend.id}
+                    onClick={() => onSelectProfile(friend.id)}
+                    className="flex w-full items-center gap-3 rounded-xl bg-surface-100 p-3 text-left transition-colors hover:bg-surface-200 dark:bg-surface-800/60 dark:hover:bg-surface-800"
+                  >
+                    <Avatar src={friend.avatar_url} name={friend.username} size="h-10 w-10" />
+                    <span className="truncate font-semibold">{friend.username}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="px-4 text-surface-500 dark:text-surface-400 md:px-0">This list is currently empty.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 };
 

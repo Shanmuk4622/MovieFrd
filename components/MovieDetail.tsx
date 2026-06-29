@@ -1,432 +1,375 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-// FIX: UserMovieList is now imported from types.ts
-import { MovieDetail as MovieDetailType, UserMovieList, MovieReview } from '../types';
+import { MovieDetailData, UserMovieList, MovieReview } from '../types';
 import { fetchMovieDetailsExtended } from '../api';
-import { StarIcon, UserIcon, XIcon, PlusIcon, CheckIcon } from './icons';
+import { StarIcon, XIcon, PlusIcon, CheckIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
-import { addMovieToList, removeMovieFromList, getUserReview, addOrUpdateReview, getMovieReviews } from '../supabaseApi';
+import {
+  addMovieToList,
+  removeMovieFromList,
+  getUserReview,
+  addOrUpdateReview,
+  getMovieReviews,
+} from '../supabaseApi';
 import { formatTimeAgo } from '../utils';
+import { cn } from '../utils/cn';
+import { POSTER_FALLBACK, PROFILE_FALLBACK, handleImageError } from '../utils/images';
 import ReviewModal from './ReviewModal';
+import { Avatar, Badge, IconButton, Spinner } from './ui';
 
 interface MovieDetailProps {
-    movieId: number;
-    onClose: () => void;
-    userMovieLists: UserMovieList[];
-    onListUpdate: (message: string) => void;
-    onSelectMovie: (movieId: number) => void;
-    onActivityRefresh?: () => void;
+  movieId: number;
+  onClose: () => void;
+  userMovieLists: UserMovieList[];
+  onListUpdate: (message: string) => void;
+  onSelectMovie: (movieId: number) => void;
+  onActivityRefresh?: () => void;
 }
 
-const MovieDetail: React.FC<MovieDetailProps> = ({ movieId, onClose, userMovieLists, onListUpdate, onSelectMovie, onActivityRefresh }) => {
-    const [movie, setMovie] = useState<MovieDetailType | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const { user } = useAuth();
-    const [loadingAction, setLoadingAction] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [showReviewModal, setShowReviewModal] = useState(false);
-    const [userReview, setUserReview] = useState<MovieReview | null>(null);
-    const [userReviewsFromDb, setUserReviewsFromDb] = useState<MovieReview[]>([]);
+const actionButton =
+  'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50';
 
-    useEffect(() => {
-        const loadDetails = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const details = await fetchMovieDetailsExtended(movieId);
-                if (details) {
-                    setMovie(details);
-                }
-                
-                // Load user's review if logged in
-                if (user) {
-                    const review = await getUserReview(user.id, movieId);
-                    setUserReview(review);
-                }
-                
-                // Load all user reviews from database
-                const dbReviews = await getMovieReviews(movieId);
-                setUserReviewsFromDb(dbReviews);
-                
-                if (!details) {
-                    setError("Could not find details for this movie.");
-                }
-            } catch (err) {
-                setError("Failed to fetch movie details.");
-                console.error(err);
-            } finally {
-                setLoading(false);
-                // Reset scroll position when movie changes
-                if (containerRef.current) {
-                    containerRef.current.scrollTop = 0;
-                }
-            }
-        };
-        loadDetails();
-    }, [movieId, user]);
+const sectionHeading = 'mt-6 mb-3 border-l-4 border-brand-500 pl-3 text-xl font-semibold';
 
-    // Effect to handle 'Escape' key press to close modal
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                onClose();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [onClose]);
+const MovieDetail: React.FC<MovieDetailProps> = ({
+  movieId,
+  onClose,
+  userMovieLists,
+  onListUpdate,
+  onSelectMovie,
+  onActivityRefresh,
+}) => {
+  const { user } = useAuth();
+  const [movie, setMovie] = useState<MovieDetailData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingAction, setLoadingAction] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [userReview, setUserReview] = useState<MovieReview | null>(null);
+  const [dbReviews, setDbReviews] = useState<MovieReview[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-    const listInfo = useMemo(() => {
-        return userMovieLists.find(item => item.tmdb_movie_id === movieId);
-    }, [userMovieLists, movieId]);
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const details = await fetchMovieDetailsExtended(movieId);
+        if (details) setMovie(details);
+        else setError('Could not find details for this movie.');
 
-    const isInWatchlist = listInfo?.list_type === 'watchlist';
-    const isInWatched = listInfo?.list_type === 'watched';
-
-    const handleAction = async (action: 'add_watchlist' | 'add_watched' | 'remove') => {
-        if (!user || loadingAction || !movie) return;
-
-        setLoadingAction(true);
-        try {
-            if (action === 'remove') {
-                await removeMovieFromList(user.id, movieId);
-                onListUpdate(`'${movie.title}' removed from your lists`);
-            } else if (action === 'add_watchlist') {
-                await addMovieToList(user.id, movieId, 'watchlist');
-                onListUpdate(`'${movie.title}' added to your Watchlist`);
-            } else if (action === 'add_watched') {
-                await addMovieToList(user.id, movieId, 'watched');
-                onListUpdate(`'${movie.title}' marked as Watched`);
-            }
-        } catch (error) {
-            console.error("Failed to update list from details", error);
-        } finally {
-            setLoadingAction(false);
-        }
+        if (user) setUserReview(await getUserReview(user.id, movieId));
+        setDbReviews(await getMovieReviews(movieId));
+      } catch (err) {
+        setError('Failed to fetch movie details.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+        if (containerRef.current) containerRef.current.scrollTop = 0;
+      }
     };
+    load();
+  }, [movieId, user]);
 
-    const handleReviewSubmit = async (rating: number, reviewText: string) => {
-        if (!user || !movie) return;
-        
-        try {
-            const review = await addOrUpdateReview(user.id, movieId, rating, reviewText);
-            setUserReview(review);
-            
-            // Refresh user reviews from database
-            const dbReviews = await getMovieReviews(movieId);
-            setUserReviewsFromDb(dbReviews);
-            
-            // Trigger activity refresh in Dashboard
-            if (onActivityRefresh) {
-                onActivityRefresh();
-            }
-            
-            onListUpdate(`Review for '${movie.title}' ${userReview ? 'updated' : 'submitted'} successfully!`);
-        } catch (error) {
-            console.error("Failed to submit review", error);
-            throw error;
-        }
-    };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-    const renderContent = () => {
-        if (loading) {
-            return <div className="flex items-center justify-center h-[50vh]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div></div>;
-        }
+  const listInfo = useMemo(
+    () => userMovieLists.find((item) => item.tmdb_movie_id === movieId),
+    [userMovieLists, movieId]
+  );
+  const isInWatchlist = listInfo?.list_type === 'watchlist';
+  const isInWatched = listInfo?.list_type === 'watched';
 
-        if (error || !movie) {
-            return <div className="text-center p-8 text-red-400">{error || "Movie not found."}</div>;
-        }
+  const handleAction = async (action: 'add_watchlist' | 'add_watched' | 'remove') => {
+    if (!user || loadingAction || !movie) return;
+    setLoadingAction(true);
+    try {
+      if (action === 'remove') {
+        await removeMovieFromList(user.id, movieId);
+        onListUpdate(`'${movie.title}' removed from your lists`);
+      } else if (action === 'add_watchlist') {
+        await addMovieToList(user.id, movieId, 'watchlist');
+        onListUpdate(`'${movie.title}' added to your Watchlist`);
+      } else {
+        await addMovieToList(user.id, movieId, 'watched');
+        onListUpdate(`'${movie.title}' marked as Watched`);
+      }
+    } catch (err) {
+      console.error('Failed to update list from details', err);
+    } finally {
+      setLoadingAction(false);
+    }
+  };
 
-        const releaseYear = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : 'N/A';
+  const handleReviewSubmit = async (rating: number, reviewText: string) => {
+    if (!user || !movie) return;
+    const review = await addOrUpdateReview(user.id, movieId, rating, reviewText);
+    const wasExisting = !!userReview;
+    setUserReview(review);
+    setDbReviews(await getMovieReviews(movieId));
+    onActivityRefresh?.();
+    onListUpdate(`Review for '${movie.title}' ${wasExisting ? 'updated' : 'submitted'} successfully!`);
+  };
 
-        return (
-            <div className="p-4 sm:p-6 pb-20">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {/* Left Column: Poster */}
-                    <div className="md:col-span-1 lg:col-span-1">
-                        <img src={movie.posterUrl} alt={movie.title} className="w-full h-auto rounded-lg shadow-lg shadow-gray-400/30 dark:shadow-black/30 sticky top-4" />
-                    </div>
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex h-[50vh] items-center justify-center">
+          <Spinner size="h-12 w-12" className="text-brand-500" />
+        </div>
+      );
+    }
+    if (error || !movie) {
+      return <div className="p-8 text-center text-brand-500">{error || 'Movie not found.'}</div>;
+    }
 
-                    {/* Right Column: Details */}
-                    <div className="md:col-span-2 lg:col-span-3">
-                        <h1 className="text-2xl md:text-3xl font-bold">{movie.title} <span className="text-xl md:text-2xl font-light text-gray-500 dark:text-gray-400">({releaseYear})</span></h1>
-                        
-                        <div className="flex items-center flex-wrap gap-x-4 mt-3 text-gray-600 dark:text-gray-300">
-                            <span>{movie.releaseDate}</span>
-                            <span>&bull;</span>
-                            <div className="flex items-center">
-                                <StarIcon className="w-5 h-5 text-yellow-400" />
-                                <span className="ml-1 font-semibold">{movie.rating.toFixed(1)}</span>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 mt-3">
-                            {movie.genres.map(g => (
-                                <button 
-                                  key={g.id} 
-                                  className="bg-red-500/10 dark:bg-red-500/20 border border-red-500/30 dark:border-red-500/40 text-red-600 dark:text-red-300 text-xs font-semibold px-3 py-1 rounded-full transition-colors duration-200 hover:bg-red-500/20 dark:hover:bg-red-500/30 cursor-default"
-                                >
-                                    {g.name}
-                                </button>
-                            ))}
-                        </div>
-                        
-                        <div className="flex items-center justify-between mt-6 mb-2">
-                          <h2 className="text-xl font-semibold border-l-4 border-red-500 pl-3">Synopsis</h2>
-                          <div className="flex items-center space-x-2">
-                            {/* Review Button */}
-                            <button
-                              onClick={() => setShowReviewModal(true)}
-                              disabled={loadingAction}
-                              className="flex items-center justify-center bg-purple-600/80 hover:bg-purple-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
-                            >
-                              <StarIcon className="w-4 h-4 mr-1" /> 
-                              {userReview ? `${userReview.rating}/10` : 'Write Review'}
-                            </button>
-                            
-                            {isInWatched ? (
-                              <button
-                                onClick={() => handleAction('remove')}
-                                disabled={loadingAction}
-                                className="flex items-center justify-center bg-red-600/80 hover:bg-red-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
-                              >
-                                <XIcon className="w-4 h-4 mr-1" /> Remove
-                              </button>
-                            ) : isInWatchlist ? (
-                              <>
-                                <button
-                                  onClick={() => handleAction('add_watched')}
-                                  disabled={loadingAction}
-                                  className="flex items-center justify-center bg-green-600/80 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
-                                >
-                                  <CheckIcon className="w-4 h-4 mr-1" /> Watched
-                                </button>
-                                <button
-                                  onClick={() => handleAction('remove')}
-                                  disabled={loadingAction}
-                                  className="flex items-center justify-center bg-red-600/80 hover:bg-red-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
-                                >
-                                  <XIcon className="w-4 h-4 mr-1" /> Remove
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleAction('add_watched')}
-                                  disabled={loadingAction}
-                                  className="flex items-center justify-center bg-green-600/80 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
-                                >
-                                  <CheckIcon className="w-4 h-4 mr-1" /> Watched
-                                </button>
-                                <button
-                                  onClick={() => handleAction('add_watchlist')}
-                                  disabled={loadingAction}
-                                  className="flex items-center justify-center bg-blue-600/80 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded-md text-xs transition-colors disabled:opacity-50"
-                                >
-                                  <PlusIcon className="w-4 h-4 mr-1" /> Watchlist
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed max-h-36 overflow-y-auto">{movie.overview}</p>
-
-                        {movie.trailerUrl && (
-                            <>
-                                <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-red-500 pl-3">Trailer</h2>
-                                <div className="relative pt-[56.25%] rounded-lg overflow-hidden shadow-lg shadow-gray-400/30 dark:shadow-black/30">
-                                    <iframe 
-                                        src={movie.trailerUrl}
-                                        title={`${movie.title} Trailer`}
-                                        frameBorder="0" 
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                        allowFullScreen
-                                        className="absolute top-0 left-0 w-full h-full"
-                                    ></iframe>
-                                </div>
-                            </>
-                        )}
-
-                        <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-red-500 pl-3">Cast</h2>
-                        <div className="flex space-x-4 overflow-x-auto pb-4 -mx-4 sm:-mx-6 px-4 sm:px-6">
-                            {movie.cast.map(member => (
-                                <div key={member.id} className="text-center w-24 md:w-28 flex-shrink-0">
-                                    {member.profileUrl && member.profileUrl.includes('placeholder') ? (
-                                        <div className="w-full aspect-[2/3] bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-2">
-                                            <UserIcon className="w-8 h-8 text-gray-400 dark:text-gray-500"/>
-                                        </div>
-                                    ) : (
-                                        <img src={member.profileUrl!} alt={member.name} className="w-full aspect-[2/3] object-cover rounded-lg mb-2 shadow-md"/>
-                                    )}
-                                    <p className="font-bold text-sm truncate">{member.name}</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.character}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Similar Movies Section */}
-                        {movie.similar && movie.similar.length > 0 && (
-                            <>
-                                <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-red-500 pl-3">You Might Also Like</h2>
-                                <div className="flex space-x-4 overflow-x-auto pb-4 -mx-4 sm:-mx-6 px-4 sm:px-6">
-                                    {movie.similar.map(sim => (
-                                        <button 
-                                            key={sim.id} 
-                                            onClick={() => onSelectMovie(sim.id)}
-                                            className="text-left w-32 md:w-36 flex-shrink-0 group"
-                                        >
-                                            <div className="relative aspect-[2/3] rounded-lg overflow-hidden mb-2 shadow-md group-hover:shadow-lg transition-all group-hover:scale-105">
-                                                <img 
-                                                    src={sim.posterUrl} 
-                                                    alt={sim.title} 
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/200x300.png?text=No+Image'; }}
-                                                />
-                                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                    <span className="text-white text-xs font-bold px-2 py-1 border border-white rounded-full">View</span>
-                                                </div>
-                                            </div>
-                                            <p className="font-bold text-xs truncate group-hover:text-red-500 transition-colors">{sim.title}</p>
-                                            <div className="flex items-center mt-1">
-                                                <StarIcon className="w-3 h-3 text-yellow-400" />
-                                                <span className="ml-1 text-[10px] text-gray-500 dark:text-gray-400">{sim.rating.toFixed(1)}</span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-
-                        {/* User Reviews from Database */}
-                        {userReviewsFromDb.length > 0 && (
-                             <>
-                                <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-red-500 pl-3">User Reviews ({userReviewsFromDb.length})</h2>
-                                <div className="space-y-4">
-                                    {userReviewsFromDb.map(review => (
-                                        <div key={review.id} className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center space-x-2">
-                                                    {review.profiles?.avatar_url ? (
-                                                        <img 
-                                                            src={review.profiles.avatar_url} 
-                                                            alt={review.profiles.username} 
-                                                            className="w-8 h-8 rounded-full object-cover" 
-                                                            onError={(e) => {e.currentTarget.style.display = 'none'}} 
-                                                        />
-                                                    ) : (
-                                                        <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                                                                {review.profiles?.username?.charAt(0).toUpperCase() || 'U'}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    <span className="font-bold text-sm">{review.profiles?.username || 'Anonymous'}</span>
-                                                    {review.user_id === user?.id && (
-                                                        <span className="text-xs text-purple-500 font-medium">(You)</span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                                                    <div className="flex items-center mr-2 bg-yellow-500/20 px-1.5 py-0.5 rounded">
-                                                        <StarIcon className="w-3 h-3 text-yellow-500 mr-1" />
-                                                        <span className="font-bold text-yellow-600 dark:text-yellow-400">{review.rating}/10</span>
-                                                    </div>
-                                                    <span>{formatTimeAgo(review.created_at)}</span>
-                                                </div>
-                                            </div>
-                                            {review.review_text && (
-                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic">"{review.review_text}"</p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                             </>
-                        )}
-
-                        {/* TMDB Reviews Section */}
-                        {movie.reviews && movie.reviews.length > 0 && (
-                             <>
-                                <h2 className="text-xl font-semibold mt-6 mb-3 border-l-4 border-blue-500 pl-3">TMDB Reviews</h2>
-                                <div className="space-y-4">
-                                    {movie.reviews.map(review => (
-                                        <div key={review.id} className="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-lg">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center space-x-2">
-                                                    {review.avatarUrl ? (
-                                                        <img src={review.avatarUrl} alt={review.author} className="w-8 h-8 rounded-full object-cover" onError={(e) => {e.currentTarget.style.display = 'none'}} />
-                                                    ) : (
-                                                        <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-300">{review.author.charAt(0).toUpperCase()}</span>
-                                                        </div>
-                                                    )}
-                                                    <span className="font-bold text-sm">{review.author}</span>
-                                                </div>
-                                                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                                                    {review.rating && (
-                                                        <div className="flex items-center mr-2 bg-yellow-500/20 px-1.5 py-0.5 rounded">
-                                                            <StarIcon className="w-3 h-3 text-yellow-500 mr-1" />
-                                                            <span className="font-bold text-yellow-600 dark:text-yellow-400">{review.rating}/10</span>
-                                                        </div>
-                                                    )}
-                                                    <span>{formatTimeAgo(review.createdAt)}</span>
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-4 leading-relaxed italic">"{review.content}"</p>
-                                        </div>
-                                    ))}
-                                </div>
-                             </>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    };
+    const releaseYear = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : 'N/A';
 
     return (
-        <>
-            <div 
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in"
-                onClick={onClose}
-                role="dialog"
-                aria-modal="true"
-            >
-                <div 
-                    ref={containerRef}
-                    className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-auto max-h-[90vh] overflow-y-auto relative scroll-smooth"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <button 
-                        onClick={onClose} 
-                        className="absolute top-3 right-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700/80 hover:bg-gray-200 dark:hover:bg-gray-600 z-10 transition-colors"
-                        aria-label="Close movie details"
-                    >
-                        <XIcon className="w-5 h-5" />
-                    </button>
-                    {renderContent()}
-                </div>
+      <div className="p-4 pb-20 sm:p-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">
+          <div className="md:col-span-1">
+            <img
+              src={movie.posterUrl}
+              alt={movie.title}
+              onError={handleImageError(POSTER_FALLBACK)}
+              className="sticky top-4 h-auto w-full rounded-2xl shadow-card dark:shadow-card-dark"
+            />
+          </div>
+
+          <div className="md:col-span-2 lg:col-span-3">
+            <h1 className="text-2xl font-bold md:text-3xl">
+              {movie.title}{' '}
+              <span className="text-xl font-light text-surface-500 dark:text-surface-400 md:text-2xl">
+                ({releaseYear})
+              </span>
+            </h1>
+
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 text-surface-600 dark:text-surface-300">
+              <span>{movie.releaseDate}</span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <StarIcon className="h-5 w-5 text-amber-400" />
+                <span className="font-semibold">{movie.rating.toFixed(1)}</span>
+              </span>
             </div>
 
-            {/* Review Modal */}
-            {showReviewModal && movie && (
-                <ReviewModal
-                    movie={{
-                        id: movie.id,
-                        title: movie.title,
-                        posterUrl: movie.posterUrl,
-                        rating: movie.rating,
-                        releaseDate: movie.releaseDate,
-                        popularity: movie.popularity
-                    }}
-                    existingReview={userReview}
-                    onClose={() => setShowReviewModal(false)}
-                    onSubmit={handleReviewSubmit}
-                />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {movie.genres.map((g) => (
+                <Badge key={g.id} tone="brand">
+                  {g.name}
+                </Badge>
+              ))}
+            </div>
+
+            <div className="mb-2 mt-6 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="border-l-4 border-brand-500 pl-3 text-xl font-semibold">Synopsis</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowReviewModal(true)}
+                  disabled={loadingAction}
+                  className={cn(actionButton, 'bg-purple-600/90 hover:bg-purple-600')}
+                >
+                  <StarIcon className="h-4 w-4" />
+                  {userReview ? `${userReview.rating}/10` : 'Write Review'}
+                </button>
+
+                {isInWatched ? (
+                  <button onClick={() => handleAction('remove')} disabled={loadingAction} className={cn(actionButton, 'bg-brand-600/90 hover:bg-brand-600')}>
+                    <XIcon className="h-4 w-4" /> Remove
+                  </button>
+                ) : isInWatchlist ? (
+                  <>
+                    <button onClick={() => handleAction('add_watched')} disabled={loadingAction} className={cn(actionButton, 'bg-emerald-600/90 hover:bg-emerald-600')}>
+                      <CheckIcon className="h-4 w-4" /> Watched
+                    </button>
+                    <button onClick={() => handleAction('remove')} disabled={loadingAction} className={cn(actionButton, 'bg-brand-600/90 hover:bg-brand-600')}>
+                      <XIcon className="h-4 w-4" /> Remove
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => handleAction('add_watched')} disabled={loadingAction} className={cn(actionButton, 'bg-emerald-600/90 hover:bg-emerald-600')}>
+                      <CheckIcon className="h-4 w-4" /> Watched
+                    </button>
+                    <button onClick={() => handleAction('add_watchlist')} disabled={loadingAction} className={cn(actionButton, 'bg-sky-600/90 hover:bg-sky-600')}>
+                      <PlusIcon className="h-4 w-4" /> Watchlist
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <p className="max-h-36 overflow-y-auto leading-relaxed text-surface-700 scrollbar-thin dark:text-surface-300">
+              {movie.overview}
+            </p>
+
+            {movie.trailerUrl && (
+              <>
+                <h2 className={sectionHeading}>Trailer</h2>
+                <div className="relative overflow-hidden rounded-2xl pt-[56.25%] shadow-card dark:shadow-card-dark">
+                  <iframe
+                    src={movie.trailerUrl}
+                    title={`${movie.title} Trailer`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute left-0 top-0 h-full w-full"
+                  />
+                </div>
+              </>
             )}
-        </>
+
+            <h2 className={sectionHeading}>Cast</h2>
+            <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-4 scrollbar-thin sm:-mx-6 sm:px-6">
+              {movie.cast.map((member) => (
+                <div key={member.id} className="w-24 flex-shrink-0 text-center md:w-28">
+                  <img
+                    src={member.profileUrl || PROFILE_FALLBACK}
+                    alt={member.name}
+                    onError={handleImageError(PROFILE_FALLBACK)}
+                    className="mb-2 aspect-[2/3] w-full rounded-xl object-cover shadow-md"
+                  />
+                  <p className="truncate text-sm font-bold">{member.name}</p>
+                  <p className="truncate text-xs text-surface-500 dark:text-surface-400">{member.character}</p>
+                </div>
+              ))}
+            </div>
+
+            {movie.similar.length > 0 && (
+              <>
+                <h2 className={sectionHeading}>You Might Also Like</h2>
+                <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-4 scrollbar-thin sm:-mx-6 sm:px-6">
+                  {movie.similar.map((sim) => (
+                    <button key={sim.id} onClick={() => onSelectMovie(sim.id)} className="group w-32 flex-shrink-0 text-left md:w-36">
+                      <div className="relative mb-2 aspect-[2/3] overflow-hidden rounded-xl shadow-md transition-transform group-hover:scale-[1.04]">
+                        <img
+                          src={sim.posterUrl}
+                          alt={sim.title}
+                          onError={handleImageError(POSTER_FALLBACK)}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <p className="truncate text-xs font-bold transition-colors group-hover:text-brand-500">{sim.title}</p>
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-surface-500 dark:text-surface-400">
+                        <StarIcon className="h-3 w-3 text-amber-400" /> {sim.rating.toFixed(1)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {dbReviews.length > 0 && (
+              <>
+                <h2 className={sectionHeading}>User Reviews ({dbReviews.length})</h2>
+                <div className="space-y-4">
+                  {dbReviews.map((review) => (
+                    <div key={review.id} className="rounded-xl bg-surface-100 p-4 dark:bg-surface-800/60">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Avatar src={review.profiles?.avatar_url} name={review.profiles?.username} size="h-8 w-8" />
+                          <span className="text-sm font-bold">{review.profiles?.username || 'Anonymous'}</span>
+                          {review.user_id === user?.id && (
+                            <span className="text-xs font-medium text-purple-500">(You)</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
+                          <Badge tone="amber">
+                            <StarIcon className="h-3 w-3" /> {review.rating}/10
+                          </Badge>
+                          <span>{formatTimeAgo(review.created_at)}</span>
+                        </div>
+                      </div>
+                      {review.review_text && (
+                        <p className="text-sm italic leading-relaxed text-surface-700 dark:text-surface-300">
+                          “{review.review_text}”
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {movie.reviews.length > 0 && (
+              <>
+                <h2 className="mb-3 mt-6 border-l-4 border-sky-500 pl-3 text-xl font-semibold">TMDB Reviews</h2>
+                <div className="space-y-4">
+                  {movie.reviews.map((review) => (
+                    <div key={review.id} className="rounded-xl bg-surface-100 p-4 dark:bg-surface-800/60">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Avatar src={review.avatarUrl} name={review.author} size="h-8 w-8" />
+                          <span className="text-sm font-bold">{review.author}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
+                          {review.rating != null && (
+                            <Badge tone="amber">
+                              <StarIcon className="h-3 w-3" /> {review.rating}/10
+                            </Badge>
+                          )}
+                          <span>{formatTimeAgo(review.createdAt)}</span>
+                        </div>
+                      </div>
+                      <p className="line-clamp-4 text-sm italic leading-relaxed text-surface-700 dark:text-surface-300">
+                        “{review.content}”
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
     );
+  };
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in-fast"
+        onClick={onClose}
+        role="presentation"
+      >
+        <div
+          ref={containerRef}
+          className="card-surface relative h-auto max-h-[90vh] w-full max-w-5xl overflow-y-auto scroll-smooth scrollbar-thin animate-scale-in"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
+          <IconButton
+            aria-label="Close movie details"
+            onClick={onClose}
+            className="absolute right-3 top-3 z-10 bg-surface-100/90 dark:bg-surface-800/90"
+          >
+            <XIcon className="h-5 w-5" />
+          </IconButton>
+          {renderContent()}
+        </div>
+      </div>
+
+      {showReviewModal && movie && (
+        <ReviewModal
+          movie={{
+            id: movie.id,
+            title: movie.title,
+            posterUrl: movie.posterUrl,
+            rating: movie.rating,
+            releaseDate: movie.releaseDate,
+            popularity: movie.popularity,
+          }}
+          existingReview={userReview}
+          onClose={() => setShowReviewModal(false)}
+          onSubmit={handleReviewSubmit}
+        />
+      )}
+    </>
+  );
 };
 
 export default MovieDetail;

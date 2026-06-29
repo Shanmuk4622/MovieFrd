@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from '../utils/cn';
 
 export type SortKey = 'default' | 'release_date' | 'popularity';
 
@@ -13,25 +14,24 @@ const sortOptions: { key: SortKey; label: string }[] = [
   { key: 'popularity', label: 'Popular' },
 ];
 
-const SortControls: React.FC<SortControlsProps> = ({ currentSort, onSortChange }) => {
-  return (
-    <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-800/50 p-1 rounded-full">
-      {sortOptions.map(option => (
-        <button
-          key={option.key}
-          onClick={() => onSortChange(option.key)}
-          className={`px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-full transition-colors ${
-            currentSort === option.key
-              ? 'bg-red-600 text-white shadow'
-              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
-          aria-pressed={currentSort === option.key}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-};
+const SortControls: React.FC<SortControlsProps> = ({ currentSort, onSortChange }) => (
+  <div className="inline-flex items-center gap-1 rounded-full bg-surface-100 p-1 dark:bg-surface-800/60">
+    {sortOptions.map((option) => (
+      <button
+        key={option.key}
+        onClick={() => onSortChange(option.key)}
+        aria-pressed={currentSort === option.key}
+        className={cn(
+          'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:px-4',
+          currentSort === option.key
+            ? 'bg-brand-600 text-white shadow-sm'
+            : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700'
+        )}
+      >
+        {option.label}
+      </button>
+    ))}
+  </div>
+);
 
 export default SortControls;

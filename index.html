@@ -1,70 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070b16" />
+    <meta name="description" content="MovieFrd — discover movies, follow friends, and chat about films in real time." />
     <title>MovieFrd</title>
     <link rel="icon" href="data:image/svg+xml,%3csvg viewBox='0 0 258 240' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M189.5 106.928C195.833 110.797 195.833 129.203 189.5 133.072L50 221.244C43.6667 225.113 36.5 220.41 36.5 212.922V27.0782C36.5 19.5902 43.6667 14.8872 50 18.7562L189.5 106.928Z' fill='%23E73827'/%3e%3cg stroke='%23E73827' stroke-width='5' stroke-linecap='round'%3e%3ccircle cx='199' cy='80' r='11' fill='%23E73827'/%3e%3ccircle cx='199' cy='160' r='11' fill='%23E73827'/%3e%3ccircle cx='245' cy='120' r='11' fill='%23E73827'/%3e%3cpath d='M190 120L199 80'/%3e%3cpath d='M190 120L199 160'/%3e%3cpath d='M199 80L245 120'/%3e%3cpath d='M199 160L245 120'/%3e%3c/g%3e%3c/svg%3e" type="image/svg+xml">
-    <script>
-      // Global error listeners for debugging
-      window.addEventListener('error', (e) => console.error('Global error:', e.message, e.filename, e.lineno, e.colno, e.error));
-      window.addEventListener('unhandledrejection', (e) => console.error('Unhandled promise rejection:', e.reason));
-    </script>
-    <script>
-      // HACK: This is a workaround to suppress the Tailwind CDN production warning in this development environment.
-      // In a real production setup, Tailwind CSS should be installed and built via a PostCSS pipeline.
-      const originalWarn = console.warn;
-      console.warn = function(message) {
-        if (message && message.includes('cdn.tailwindcss.com should not be used in production')) {
-          return; // Suppress the specific warning
-        }
-        // For all other warnings, use the original console.warn
-        originalWarn.apply(console, arguments);
-      };
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      // Restore the original console.warn
-      console.warn = originalWarn;
-    </script>
-    <style>
-      /* Custom scrollbar for webkit browsers */
-      ::-webkit-scrollbar {
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1f2937; /* bg-gray-800 */
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #4b5563; /* bg-gray-600 */
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #6b7280; /* bg-gray-500 */
-      }
-      
-      /* Fade in animation */
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fade-in {
-        animation: fadeIn 0.5s ease-out forwards;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm",
-    "@google/genai": "https://esm.run/@google/genai"
-  }
-}
-</script>
-</head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

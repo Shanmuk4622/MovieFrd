@@ -1,6 +1,7 @@
 import React from 'react';
 import { Conversation } from './Chat';
-import { MenuIcon, UserIcon, PhoneIcon, InformationCircleIcon } from './icons';
+import { MenuIcon, PhoneIcon, InformationCircleIcon } from './icons';
+import { Avatar, IconButton } from './ui';
 
 interface ChatHeaderProps {
   activeConversation: Conversation | null;
@@ -11,63 +12,53 @@ interface ChatHeaderProps {
 const ChatHeader: React.FC<ChatHeaderProps> = ({ activeConversation, onlineUsers, onToggleSidebar }) => {
   if (!activeConversation) {
     return (
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center space-x-3">
-          <button onClick={onToggleSidebar} className="lg:hidden p-1 text-gray-500 dark:text-gray-400">
-            <MenuIcon className="w-6 h-6" />
-          </button>
-          <span className="text-xl font-bold tracking-wider text-gray-900 dark:text-white">Chat</span>
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-surface-200 p-4 dark:border-surface-800">
+        <div className="flex items-center gap-3">
+          <IconButton aria-label="Toggle conversations" onClick={onToggleSidebar} className="lg:hidden">
+            <MenuIcon className="h-6 w-6" />
+          </IconButton>
+          <span className="text-xl font-bold tracking-tight">Chat</span>
         </div>
       </div>
     );
   }
 
-  const conversationName = activeConversation.type === 'room' ? activeConversation.name : activeConversation.username;
-  const isOtherUserOnline = activeConversation.type === 'dm' && onlineUsers.has(activeConversation.id);
+  const name = activeConversation.type === 'room' ? activeConversation.name : activeConversation.username;
+  const isOnline = activeConversation.type === 'dm' && onlineUsers.has(activeConversation.id);
 
   return (
-    <div className="p-3 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between flex-shrink-0 bg-white dark:bg-gray-800">
-      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-        <button onClick={onToggleSidebar} className="lg:hidden p-1 text-gray-500 dark:text-gray-400">
-          <MenuIcon className="w-6 h-6" />
-        </button>
-        {/* Avatar for DMs, or a hash for rooms */}
+    <div className="flex flex-shrink-0 items-center justify-between border-b border-surface-200 bg-white p-3 dark:border-surface-800 dark:bg-surface-900">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <IconButton aria-label="Toggle conversations" onClick={onToggleSidebar} className="lg:hidden">
+          <MenuIcon className="h-6 w-6" />
+        </IconButton>
         {activeConversation.type === 'dm' ? (
-          activeConversation.avatar_url ? (
-            <img src={activeConversation.avatar_url} alt={conversationName} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0" />
-          ) : (
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-              <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            </div>
-          )
+          <Avatar src={activeConversation.avatar_url} name={name} size="h-10 w-10" />
         ) : (
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-red-500 font-bold text-xl">#</span>
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10">
+            <span className="text-xl font-bold text-brand-500">#</span>
           </div>
         )}
         <div className="min-w-0">
-          <h1 className="text-base sm:text-lg font-bold truncate text-gray-900 dark:text-white">
-            {conversationName}
-          </h1>
-          {isOtherUserOnline ? (
-            <div className="flex items-center gap-1.5 animate-fade-in">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-xs text-green-400 font-semibold">Online</span>
+          <h1 className="truncate text-base font-bold text-surface-900 dark:text-white sm:text-lg">{name}</h1>
+          {isOnline ? (
+            <div className="flex animate-fade-in items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="text-xs font-semibold text-emerald-500">Online</span>
             </div>
           ) : activeConversation.type === 'room' && activeConversation.description ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{activeConversation.description}</p>
-          ) : null }
+            <p className="truncate text-xs text-surface-500 dark:text-surface-400">{activeConversation.description}</p>
+          ) : null}
         </div>
       </div>
-      
-      {/* Action Icons */}
-      <div className="flex items-center space-x-2">
-            <button className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors">
-                <PhoneIcon className="w-5 h-5"/>
-            </button>
-             <button className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors">
-                <InformationCircleIcon className="w-5 h-5"/>
-            </button>
+
+      <div className="flex items-center gap-1">
+        <IconButton aria-label="Call">
+          <PhoneIcon className="h-5 w-5" />
+        </IconButton>
+        <IconButton aria-label="Conversation info">
+          <InformationCircleIcon className="h-5 w-5" />
+        </IconButton>
       </div>
     </div>
   );

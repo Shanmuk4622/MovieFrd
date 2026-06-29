@@ -186,8 +186,8 @@ npm install
 **B. Initialize Database Schema**
 1. In Supabase Dashboard, go to **SQL Editor**
 2. Click **+ New query**
-3. Copy the entire content from `schema.sql`
-4. Paste it into the editor and click **RUN**
+3. Run the SQL in `supabase/reviews-schema.sql` (movie reviews table) and `supabase/COMPLETE_SETUP.sql` (anonymous chat tables, policies, and the `find_anonymous_chat_partner` function)
+4. Paste each into the editor and click **RUN**
 5. Wait for all queries to complete
 
 **C. Set Up Storage**
@@ -203,14 +203,15 @@ npm install
 
 #### 4. Configure Environment Variables
 
-Create a `.env.local` file in the project root:
+Copy `.env.example` to `.env.local` in the project root and fill in real values:
 ```env
 VITE_SUPABASE_URL=your_project_url_here
 VITE_SUPABASE_ANON_KEY=your_anon_key_here
-VITE_TMDB_API_KEY=your_tmdb_api_key_here
+VITE_TMDB_API_KEY=your_tmdb_v4_read_access_token
+VITE_GEMINI_API_KEY=your_gemini_api_key   # optional — enables AI friend recommendations
 ```
 
-> **Note**: Alternatively, these keys can be hardcoded in `supabaseClient.ts` and `api.ts` for development (not recommended for production).
+> **Security**: All secrets are read exclusively from `import.meta.env` — there are **no hardcoded fallbacks** in source. The app throws a clear error at startup if `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are missing. `.env.local` is git-ignored; never commit real keys. If keys were previously committed, rotate them in the Supabase/TMDB dashboards.
 
 #### 5. Get TMDB API Key
 
@@ -278,12 +279,17 @@ MovieFrd/
 # Development server (with hot reload)
 npm run dev
 
-# Build for production
+# Type-check the project (no emit)
+npm run typecheck
+
+# Build for production (type-check + Vite build)
 npm run build
 
 # Preview production build
 npm run preview
 ```
+
+> **Styling pipeline**: Tailwind CSS is installed and compiled via PostCSS (`tailwind.config.js`, `postcss.config.js`, `index.css`) — it is no longer loaded from a CDN. Design tokens (brand/surface palette, shadows, animations) live in `tailwind.config.js`, and shared UI primitives live in `components/ui/`.
 
 ---
 
@@ -342,11 +348,7 @@ npm install
 
 ### Debug Mode
 
-Check console for detailed logging:
-```typescript
-// Enable enhanced logging in supabaseApi.ts
-const DEBUG = true; // Set to false in production
-```
+The data layer lives in `services/` (split by domain: `profiles`, `movieLists`, `reviews`, `activity`, `friends`, `rooms`, `directMessages`, `anonymousChat`) and is re-exported through `supabaseApi.ts` for stable imports. Each service logs failures with a scoped label (e.g. `[getProfile]`) via `services/helpers.ts`, so check the browser console for those labels when debugging.
 
 ---
 

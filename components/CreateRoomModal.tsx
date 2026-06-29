@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { XIcon } from './icons';
+import { Button, Input, Modal, Textarea } from './ui';
 
 interface CreateRoomModalProps {
   isOpen: boolean;
@@ -15,13 +15,10 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onSu
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setIsAnonymous(isAnonymousDefault);
-  }, [isAnonymousDefault]);
+  useEffect(() => setIsAnonymous(isAnonymousDefault), [isAnonymousDefault]);
 
   useEffect(() => {
     if (!isOpen) {
-      // Reset form on close
       setName('');
       setDescription('');
       setError(null);
@@ -31,7 +28,7 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onSu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || name.trim().length < 3) {
+    if (name.trim().length < 3) {
       setError('Room name must be at least 3 characters long.');
       return;
     }
@@ -46,76 +43,59 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onSu
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700/50">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold">Create a New Room</h2>
-          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            <XIcon className="w-6 h-6" />
-          </button>
+    <Modal isOpen={isOpen} onClose={onClose} title="Create a New Room" maxWidth="max-w-md">
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-4 p-6">
+          {error && (
+            <p className="rounded-xl bg-brand-500/15 p-3 text-center text-sm text-brand-600 dark:text-brand-300">
+              {error}
+            </p>
+          )}
+
+          <div>
+            <label htmlFor="room-name" className="mb-1.5 block text-sm font-semibold text-surface-500 dark:text-surface-400">
+              Room Name
+            </label>
+            <Input
+              id="room-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., #salaar-spoilers"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="room-desc" className="mb-1.5 block text-sm font-semibold text-surface-500 dark:text-surface-400">
+              Description (Optional)
+            </label>
+            <Textarea
+              id="room-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What is this room about?"
+              className="h-24"
+            />
+          </div>
+
+          <label className="flex cursor-pointer items-center justify-between rounded-xl bg-surface-100 p-3 dark:bg-surface-800/60">
+            <span className="font-semibold text-surface-900 dark:text-white">Anonymous Room</span>
+            <span className="relative inline-flex items-center">
+              <input type="checkbox" className="peer sr-only" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} />
+              <span className="h-6 w-11 rounded-full bg-surface-300 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-brand-600 peer-checked:after:translate-x-full dark:bg-surface-600" />
+            </span>
+          </label>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="p-6 space-y-4">
-            {error && <p className="bg-red-500/20 text-red-400 text-center p-3 rounded-md text-sm">{error}</p>}
-            
-            <div>
-              <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="room-name">
-                Room Name
-              </label>
-              <input
-                id="room-name"
-                className="w-full p-3 bg-gray-100 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., #salaar-spoilers"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-bold text-gray-500 dark:text-gray-400 block mb-2" htmlFor="room-desc">
-                Description (Optional)
-              </label>
-              <textarea
-                id="room-desc"
-                className="w-full p-3 bg-gray-100 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 h-24 resize-none"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What is this room about?"
-              />
-            </div>
 
-            <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-3 rounded-md">
-              <span className="font-semibold text-gray-900 dark:text-white">Anonymous Room</span>
-              <label htmlFor="anonymous-toggle" className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  id="anonymous-toggle" 
-                  className="sr-only peer"
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-red-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-              </label>
-            </div>
-
-          </div>
-          <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700/50 flex justify-end rounded-b-2xl">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-md transition-colors disabled:bg-red-800 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Creating...' : 'Create Room'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex justify-end border-t border-surface-200/70 px-5 py-4 dark:border-surface-800">
+          <Button type="submit" isLoading={loading}>
+            Create Room
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 

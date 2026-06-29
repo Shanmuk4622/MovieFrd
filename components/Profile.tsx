@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-// FIX: UserMovieList is now imported from types.ts
 import { getFriendships, uploadAvatar } from '../supabaseApi';
 import { Movie, Friendship, UserMovieList } from '../types';
 import { fetchMovieDetails } from '../api';
@@ -9,8 +8,9 @@ import UserDiscovery from './UserSearch';
 import FriendList from './FriendList';
 import FriendRecommendations from './FriendRecommendations';
 import MyReviews from './MyReviews';
-import { UserIcon, SunIcon, MoonIcon, PencilIcon } from './icons';
+import { SunIcon, MoonIcon, PencilIcon } from './icons';
 import { MovieListSkeleton } from './skeletons';
+import { Avatar, Button, IconButton, Spinner } from './ui';
 
 interface ProfileProps {
   userMovieLists: UserMovieList[];
@@ -18,6 +18,17 @@ interface ProfileProps {
   onSelectMovie: (movieId: number) => void;
   onSelectProfile: (userId: string) => void;
 }
+
+const fetchMoviesInChunks = async (ids: number[]): Promise<Movie[]> => {
+  const all: Movie[] = [];
+  const chunkSize = 10;
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const movies = await Promise.all(chunk.map((id) => fetchMovieDetails(id)));
+    all.push(...movies.filter((m): m is Movie => m !== null));
+  }
+  return all;
+};
 
 const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelectMovie, onSelectProfile }) => {
   const { user, profile, refreshProfile, signOut, theme, toggleTheme } = useAuth();
@@ -27,214 +38,168 @@ const Profile: React.FC<ProfileProps> = ({ userMovieLists, onListUpdate, onSelec
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [loadingFriendships, setLoadingFriendships] = useState(true);
 
-  // Avatar upload states
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  
-  // Sign out state
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const fetchFriendships = useCallback(async () => {
     if (!user) return;
     setLoadingFriendships(true);
     try {
-        const data = await getFriendships(user.id);
-        setFriendships(data);
+      setFriendships(await getFriendships(user.id));
     } catch (error) {
-        console.error("Failed to fetch friendships", error);
+      console.error('Failed to fetch friendships', error);
     } finally {
-        setLoadingFriendships(false);
+      setLoadingFriendships(false);
     }
   }, [user]);
 
   useEffect(() => {
-    if (user) {
-      fetchFriendships();
-    }
+    if (user) fetchFriendships();
   }, [user, fetchFriendships]);
 
   useEffect(() => {
-    const fetchMoviesInChunks = async (ids: number[]): Promise<Movie[]> => {
-        const allMovies: Movie[] = [];
-        const chunkSize = 10; // Fetch 10 movies at a time
-        for (let i = 0; i < ids.length; i += chunkSize) {
-            const chunkIds = ids.slice(i, i + chunkSize);
-            const moviePromises = chunkIds.map(id => fetchMovieDetails(id));
-            const moviesInChunk = await Promise.all(moviePromises);
-            allMovies.push(...moviesInChunk.filter((m): m is Movie => m !== null));
-        }
-        return allMovies;
-    };
-
-    const fetchMovieDataForLists = async () => {
+    if (!user) return;
+    const load = async () => {
       setLoadingMovies(true);
-      const watchedIds = userMovieLists.filter(item => item.list_type === 'watched').map(item => item.tmdb_movie_id);
-      const watchlistIds = userMovieLists.filter(item => item.list_type === 'watchlist').map(item => item.tmdb_movie_id);
-
+      const watchedIds = userMovieLists.filter((i) => i.list_type === 'watched').map((i) => i.tmdb_movie_id);
+      const watchlistIds = userMovieLists.filter((i) => i.list_type === 'watchlist').map((i) => i.tmdb_movie_id);
       try {
         const [watchedMovies, watchlistMovies] = await Promise.all([
           fetchMoviesInChunks(watchedIds),
-          fetchMoviesInChunks(watchlistIds)
+          fetchMoviesInChunks(watchlistIds),
         ]);
-        
         setWatched(watchedMovies);
         setWatchlist(watchlistMovies);
-
       } catch (error) {
-        console.error("Error fetching movie details for lists:", error);
+        console.error('Error fetching movie details for lists:', error);
       } finally {
         setLoadingMovies(false);
       }
     };
-
-    if (user) {
-        fetchMovieDataForLists();
-    }
+    load();
   }, [user, userMovieLists]);
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0 || !user) return;
-
-    const file = files[0];
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
     setUploading(true);
     setUploadError(null);
-
     try {
       await uploadAvatar(user.id, file);
-      await refreshProfile(); // Refresh global profile state
+      await refreshProfile();
     } catch (error: any) {
-      setUploadError(error.message || "Failed to upload avatar. Please ensure the 'avatars' storage bucket exists and has the correct policies.");
+      setUploadError(
+        error.message ||
+          "Failed to upload avatar. Ensure the 'avatars' storage bucket exists with the correct policies."
+      );
       console.error(error);
     } finally {
       setUploading(false);
-      // Reset file input to allow re-uploading the same file
-      if (event.target) {
-        event.target.value = '';
-      }
+      if (event.target) event.target.value = '';
     }
   };
-  
+
   const handleSignOut = async () => {
     setIsSigningOut(true);
     const { error } = await signOut();
     if (error) {
-        console.error("Error signing out:", error);
-        // Optionally show a notification to the user here
-        setIsSigningOut(false);
+      console.error('Error signing out:', error);
+      setIsSigningOut(false);
     }
-    // On success, the component will unmount due to auth state change,
-    // so we don't need to explicitly set signing out to false.
   };
 
   if (!user || !profile) {
-    return <div className="text-center p-8">Loading profile...</div>;
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Spinner size="h-8 w-8" className="text-brand-500" />
+      </div>
+    );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 md:px-0">
-        <div className="md:col-span-2">
-            <div className="flex items-center justify-between space-x-4 mb-8 p-4 bg-white dark:bg-gray-800/50 rounded-lg shadow-sm">
-                <div className="flex items-center space-x-4 min-w-0">
-                    <div className="relative group flex-shrink-0">
-                        {profile.avatar_url ? (
-                            <img src={profile.avatar_url} alt={profile.username} className="w-16 h-16 rounded-full object-cover" />
-                        ) : (
-                            <UserIcon className="w-16 h-16 text-gray-500 dark:text-gray-400" />
-                        )}
-                        {uploading ? (
-                            <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label="Update profile picture"
-                            >
-                                <PencilIcon className="w-7 h-7 text-white" />
-                            </button>
-                        )}
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleAvatarUpload}
-                            accept="image/png, image/jpeg"
-                            className="hidden"
-                            disabled={uploading}
-                        />
-                    </div>
-                    <div className="min-w-0">
-                      <h1 className="text-3xl font-bold truncate">{profile.username}</h1>
-                      <p className="text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
-                      {uploadError && <p className="text-red-400 text-xs mt-1">{uploadError}</p>}
-                    </div>
+    <div className="grid grid-cols-1 gap-8 px-4 md:grid-cols-3 md:px-0">
+      <div className="md:col-span-2">
+        <div className="card-surface mb-8 flex items-center justify-between gap-4 p-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="group relative flex-shrink-0">
+              <Avatar src={profile.avatar_url} name={profile.username} size="h-16 w-16" />
+              {uploading ? (
+                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60">
+                  <Spinner size="h-7 w-7" className="text-white" />
                 </div>
+              ) : (
                 <button
-                  onClick={toggleTheme}
-                  className="p-3 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/50 hover:text-red-500 transition-colors flex-shrink-0"
-                  aria-label="Toggle theme"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 opacity-0 transition-opacity group-hover:opacity-100"
+                  aria-label="Update profile picture"
                 >
-                  {theme === 'dark' ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
+                  <PencilIcon className="h-6 w-6 text-white" />
                 </button>
+              )}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleAvatarUpload}
+                accept="image/png, image/jpeg"
+                className="hidden"
+                disabled={uploading}
+              />
             </div>
-            
-            {loadingMovies ? (
-                <>
-                    <MovieListSkeleton />
-                    <MovieListSkeleton />
-                </>
-            ) : (
-                <>
-                {/* My Reviews Section */}
-                <MyReviews userId={user.id} onSelectMovie={onSelectMovie} />
-                
-                <MovieList 
-                    title="My Watched List" 
-                    movies={watched}
-                    userMovieLists={userMovieLists}
-                    onListUpdate={onListUpdate} 
-                    onSelectMovie={onSelectMovie}
-                />
-                <MovieList 
-                    title="My Watchlist" 
-                    movies={watchlist}
-                    userMovieLists={userMovieLists}
-                    onListUpdate={onListUpdate}
-                    onSelectMovie={onSelectMovie}
-                />
-                </>
-            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-3xl font-bold">{profile.username}</h1>
+              <p className="truncate text-surface-500 dark:text-surface-400">{user.email}</p>
+              {uploadError && <p className="mt-1 text-xs text-brand-500">{uploadError}</p>}
+            </div>
+          </div>
+          <IconButton
+            aria-label="Toggle theme"
+            onClick={toggleTheme}
+            className="flex-shrink-0 hover:text-brand-500"
+          >
+            {theme === 'dark' ? <SunIcon className="h-6 w-6" /> : <MoonIcon className="h-6 w-6" />}
+          </IconButton>
+        </div>
 
-            <div className="mt-8">
-              <button
-                onClick={handleSignOut}
-                disabled={isSigningOut}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors disabled:bg-red-800 disabled:cursor-not-allowed"
-              >
-                {isSigningOut ? 'Signing Out...' : 'Sign Out'}
-              </button>
-            </div>
+        {loadingMovies ? (
+          <>
+            <MovieListSkeleton />
+            <MovieListSkeleton />
+          </>
+        ) : (
+          <>
+            <MyReviews userId={user.id} onSelectMovie={onSelectMovie} />
+            <MovieList title="My Watched List" movies={watched} userMovieLists={userMovieLists} onListUpdate={onListUpdate} onSelectMovie={onSelectMovie} />
+            <MovieList title="My Watchlist" movies={watchlist} userMovieLists={userMovieLists} onListUpdate={onListUpdate} onSelectMovie={onSelectMovie} />
+          </>
+        )}
+
+        <div className="mt-8">
+          <Button variant="danger" fullWidth size="lg" onClick={handleSignOut} isLoading={isSigningOut}>
+            Sign Out
+          </Button>
         </div>
-        <div className="md:col-span-1">
-            <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 space-y-6 shadow-sm">
-                <FriendList 
-                  currentUser={user} 
-                  friendships={friendships} 
-                  onFriendAction={fetchFriendships} 
-                  isLoading={loadingFriendships} 
-                  onSelectProfile={onSelectProfile}
-                />
-                <FriendRecommendations 
-                  currentUser={user} 
-                  currentUserProfile={profile}
-                  userMovieLists={userMovieLists}
-                  onFriendAction={fetchFriendships} 
-                />
-                <UserDiscovery currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
-            </div>
+      </div>
+
+      <div className="md:col-span-1">
+        <div className="card-surface space-y-6 p-4">
+          <FriendList
+            currentUser={user}
+            friendships={friendships}
+            onFriendAction={fetchFriendships}
+            isLoading={loadingFriendships}
+            onSelectProfile={onSelectProfile}
+          />
+          <FriendRecommendations
+            currentUser={user}
+            currentUserProfile={profile}
+            userMovieLists={userMovieLists}
+            onFriendAction={fetchFriendships}
+          />
+          <UserDiscovery currentUser={user} friendships={friendships} onFriendAction={fetchFriendships} />
         </div>
+      </div>
     </div>
   );
 };

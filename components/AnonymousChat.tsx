@@ -1,364 +1,241 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   findAnonymousChatPartner,
-  getActiveAnonymousSession,
   getAnonymousChatMessages,
   sendAnonymousMessage,
   endAnonymousSession,
   subscribeToAnonymousSession,
   subscribeToAnonymousMessages,
-  subscribeToAnonymousTyping
+  subscribeToAnonymousTyping,
 } from '../supabaseApi';
 import { AnonymousChatMessage, AnonymousChatSession } from '../types';
 import MessageInput from './MessageInput';
 import { formatTimeAgo } from '../utils';
+import { XIcon, ChatBubbleIcon } from './icons';
+import { Button, Spinner } from './ui';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface AnonymousChatProps {
   onClose: () => void;
 }
 
+type Status = 'idle' | 'searching' | 'paired' | 'ended';
+
 const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
   const { user } = useAuth();
-  const [status, setStatus] = useState<'idle' | 'searching' | 'paired' | 'ended'>('idle');
+  const [status, setStatus] = useState<Status>('idle');
   const [session, setSession] = useState<AnonymousChatSession | null>(null);
   const [messages, setMessages] = useState<AnonymousChatMessage[]>([]);
   const [partnerTyping, setPartnerTyping] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
   const [partnerDisconnected, setPartnerDisconnected] = useState(false);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionChannelRef = useRef<RealtimeChannel | null>(null);
   const messagesChannelRef = useRef<RealtimeChannel | null>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
   }, [messages]);
-
-  // Removed checkExistingSession - let the function handle everything
-  useEffect(() => {
-    return () => {
-      cleanup();
-    };
-  }, []);
 
   const cleanup = () => {
     sessionChannelRef.current?.unsubscribe();
     messagesChannelRef.current?.unsubscribe();
     typingChannelRef.current?.unsubscribe();
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   };
 
+  useEffect(() => () => cleanup(), []);
+
   const loadMessages = async (sessionId: string) => {
-    console.log('[AnonymousChat] Loading messages for session:', sessionId);
     try {
-      const msgs = await getAnonymousChatMessages(sessionId);
-      console.log('[AnonymousChat] Loaded messages:', msgs.length, msgs);
-      setMessages(msgs);
+      setMessages(await getAnonymousChatMessages(sessionId));
     } catch (error) {
-      console.error('[AnonymousChat] Error loading messages:', error);
+      console.error('Error loading anonymous messages:', error);
     }
   };
 
   const setupRealtime = (sessionId: string) => {
-    console.log('[AnonymousChat] Setting up realtime for session:', sessionId);
-    
-    // Subscribe to session updates (pairing, ending)
     sessionChannelRef.current = subscribeToAnonymousSession(sessionId, (payload) => {
-      console.log('[AnonymousChat] Session update:', payload);
-      
-      if (payload.eventType === 'UPDATE') {
-        const updatedSession = payload.new as AnonymousChatSession;
-        setSession(updatedSession);
-        
-        if (updatedSession.status === 'paired' && status !== 'paired') {
-          console.log('[AnonymousChat] Session paired!');
-          setStatus('paired');
-          loadMessages(sessionId);
-        } else if (updatedSession.status === 'ended') {
-          console.log('[AnonymousChat] Session ended');
-          setStatus('ended');
-          if (updatedSession.ended_by !== user?.id) {
-            setPartnerDisconnected(true);
-          }
-        }
+      if (payload.eventType !== 'UPDATE') return;
+      const updated = payload.new as AnonymousChatSession;
+      setSession(updated);
+      if (updated.status === 'paired') {
+        setStatus('paired');
+        loadMessages(sessionId);
+      } else if (updated.status === 'ended') {
+        setStatus('ended');
+        if (updated.ended_by !== user?.id) setPartnerDisconnected(true);
       }
     });
 
-    // Subscribe to new messages
     messagesChannelRef.current = subscribeToAnonymousMessages(sessionId, (payload) => {
-      console.log('[AnonymousChat] New message received:', payload);
-      
-      if (payload.eventType === 'INSERT') {
-        const newMessage = payload.new as AnonymousChatMessage;
-        
-        // Only add if it's not from current user or if it doesn't already exist
-        // (to prevent duplicates from optimistic updates)
-        setMessages(prev => {
-          const messageExists = prev.some(m => m.id === newMessage.id);
-          if (messageExists) {
-            console.log('[AnonymousChat] Message already exists, skipping:', newMessage.id);
-            return prev;
-          }
-          
-          // If message is from current user, check if we have an optimistic version
-          if (newMessage.sender_id === user?.id) {
-            const hasOptimisticVersion = prev.some(m => m.content === newMessage.content && m.sender_id === user?.id);
-            if (hasOptimisticVersion) {
-              console.log('[AnonymousChat] Message already in optimistic form, replacing');
-              return prev.map(m => 
-                m.content === newMessage.content && m.sender_id === user?.id ? newMessage : m
-              );
-            }
-          }
-          
-          console.log('[AnonymousChat] Adding new message:', newMessage);
-          return [...prev, newMessage];
-        });
-      }
+      if (payload.eventType !== 'INSERT') return;
+      const newMessage = payload.new as AnonymousChatMessage;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === newMessage.id)) return prev;
+        // Reconcile our own optimistic message (temp string id) with the server row.
+        if (newMessage.sender_id === user?.id) {
+          const optimistic = prev.find((m) => m.content === newMessage.content && m.sender_id === user?.id && typeof m.id === 'string');
+          if (optimistic) return prev.map((m) => (m === optimistic ? newMessage : m));
+        }
+        return [...prev, newMessage];
+      });
     });
 
-    // Subscribe to typing indicators
     typingChannelRef.current = subscribeToAnonymousTyping(sessionId, (payload) => {
-      console.log('[AnonymousChat] Typing event:', payload);
-      
-      if (payload.payload?.user_id !== user?.id) {
-        setPartnerTyping(payload.payload?.is_typing || false);
-        
-        // Auto-hide typing indicator after 3 seconds
-        if (payload.payload?.is_typing) {
-          setTimeout(() => setPartnerTyping(false), 3000);
-        }
-      }
+      if (payload.payload?.user_id === user?.id) return;
+      setPartnerTyping(payload.payload?.is_typing || false);
+      if (payload.payload?.is_typing) setTimeout(() => setPartnerTyping(false), 3000);
     });
   };
 
   const handleStartSearch = async () => {
-    console.log('[AnonymousChat] Starting search...');
     setStatus('searching');
     setMessages([]);
     setPartnerDisconnected(false);
-    
+
     const result = await findAnonymousChatPartner();
-    console.log('[AnonymousChat] Partner search result:', result);
-    
-    if (result) {
-      const sessionData: AnonymousChatSession = {
-        id: '',
-        session_id: result.session_id,
-        user1_id: user?.id || null,
-        user2_id: result.partner_id,
-        status: result.partner_id ? 'paired' : 'waiting',
-        created_at: new Date().toISOString(),
-        paired_at: result.partner_id ? new Date().toISOString() : null,
-        ended_at: null,
-        ended_by: null
-      };
-      
-      console.log('[AnonymousChat] Session data created:', sessionData);
-      setSession(sessionData);
-      
-      if (result.partner_id) {
-        console.log('[AnonymousChat] Partner found! Setting status to paired');
-        setStatus('paired');
-        // Load existing messages
-        loadMessages(result.session_id);
-      }
-      
-      setupRealtime(result.session_id);
-    } else {
-      console.warn('[AnonymousChat] No result from findAnonymousChatPartner');
+    if (!result) {
+      setStatus('idle');
+      return;
     }
+
+    const sessionData: AnonymousChatSession = {
+      id: '',
+      session_id: result.session_id,
+      user1_id: user?.id || null,
+      user2_id: result.partner_id,
+      status: result.partner_id ? 'paired' : 'waiting',
+      created_at: new Date().toISOString(),
+      paired_at: result.partner_id ? new Date().toISOString() : null,
+      ended_at: null,
+      ended_by: null,
+    };
+    setSession(sessionData);
+    if (result.partner_id) {
+      setStatus('paired');
+      loadMessages(result.session_id);
+    }
+    setupRealtime(result.session_id);
   };
 
   const handleSendMessage = async (content: string) => {
-    if (!session || status !== 'paired') {
-      console.warn('[AnonymousChat] Cannot send message - not paired', { session, status });
-      return;
-    }
-    
-    console.log('[AnonymousChat] Sending message:', content);
-    
-    // Use a reference to track this message to avoid duplicates
-    const messageReference = `msg-${Date.now()}-${Math.random()}`;
-    
-    // Optimistic update - add message immediately
-    const optimisticMessage: AnonymousChatMessage = {
-      id: messageReference, // Use reference instead of temp-ID
+    if (!session || status !== 'paired') return;
+    const tempId = `msg-${Date.now()}-${Math.random()}`;
+    const optimistic: AnonymousChatMessage = {
+      id: tempId,
       session_id: session.session_id,
       sender_id: user?.id || '',
       content,
       created_at: new Date().toISOString(),
-      is_typing: false
+      is_typing: false,
     };
-    console.log('[AnonymousChat] Adding optimistic message:', optimisticMessage);
-    setMessages(prev => [...prev, optimisticMessage]);
-    
+    setMessages((prev) => [...prev, optimistic]);
+
     try {
       const result = await sendAnonymousMessage(session.session_id, content);
-      console.log('[AnonymousChat] Message API result:', result);
-      if (result && result.id) {
-        // Replace temporary message with actual message from server
-        console.log('[AnonymousChat] Replacing optimistic message', messageReference, 'with real ID', result.id);
-        setMessages(prev => prev.map(m => m.id === messageReference ? result : m));
-      }
+      if (result?.id) setMessages((prev) => prev.map((m) => (m.id === tempId ? result : m)));
     } catch (error) {
-      console.error('[AnonymousChat] Failed to send message:', error);
-      // Remove optimistic message on error
-      setMessages(prev => prev.filter(m => m.id !== messageReference));
+      console.error('Failed to send anonymous message:', error);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
     }
   };
 
   const handleTyping = (typing: boolean) => {
-    if (!session) return;
-    
-    setIsTyping(typing);
-    
-    // Send typing indicator via realtime broadcast
-    if (typingChannelRef.current) {
-      typingChannelRef.current.track({
-        user_id: user?.id,
-        is_typing: typing
-      });
-    }
+    if (!session || !typingChannelRef.current) return;
+    typingChannelRef.current.track({ user_id: user?.id, is_typing: typing });
   };
 
-  const handleSkip = async () => {
-    console.log('[AnonymousChat] Skip button clicked');
-    if (session) {
-      try {
-        await endAnonymousSession(session.session_id);
-        console.log('[AnonymousChat] Session ended successfully');
-      } catch (error) {
-        console.error('[AnonymousChat] Error ending session on skip:', error);
-      }
-    }
-    
+  const resetToIdle = () => {
     cleanup();
     setStatus('idle');
     setSession(null);
     setMessages([]);
     setPartnerDisconnected(false);
-    setIsTyping(false);
     setPartnerTyping(false);
   };
 
-  const handleDisconnect = async () => {
+  const handleSkip = async () => {
     if (session) {
-      await endAnonymousSession(session.session_id);
+      try {
+        await endAnonymousSession(session.session_id);
+      } catch (error) {
+        console.error('Error ending session on skip:', error);
+      }
     }
-    
+    resetToIdle();
+  };
+
+  const handleDisconnect = async () => {
+    if (session) await endAnonymousSession(session.session_id);
     cleanup();
     setStatus('ended');
   };
 
-  const getPartnerName = () => {
-    if (!session || !user) return 'Stranger';
-    
-    // Determine if current user is user1 or user2
-    const isUser1 = session.user1_id === user.id;
-    return isUser1 ? 'Stranger 2' : 'Stranger 1';
-  };
-
-  const getMyName = () => {
-    if (!session || !user) return 'You';
-    
-    const isUser1 = session.user1_id === user.id;
-    return isUser1 ? 'Stranger 1' : 'Stranger 2';
-  };
+  const isUser1 = session?.user1_id === user?.id;
+  const partnerName = isUser1 ? 'Stranger 2' : 'Stranger 1';
+  const myName = isUser1 ? 'Stranger 1' : 'Stranger 2';
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-800">
+    <div className="flex h-full flex-col bg-surface-950">
+      <div className="flex items-center justify-between border-b border-surface-700 bg-surface-900 p-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">?</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-lg font-bold text-white">
+            ?
           </div>
           <div>
-            <h2 className="font-semibold text-white text-lg">
+            <h2 className="text-lg font-semibold text-white">
               {status === 'idle' && 'Anonymous Chat'}
-              {status === 'searching' && 'Finding a stranger...'}
-              {status === 'paired' && getPartnerName()}
+              {status === 'searching' && 'Finding a stranger…'}
+              {status === 'paired' && partnerName}
               {status === 'ended' && 'Chat Ended'}
             </h2>
             {status === 'paired' && !partnerDisconnected && (
-              <p className="text-xs text-gray-400">
-                {partnerTyping ? 'Stranger is typing...' : 'Connected'}
-              </p>
+              <p className="text-xs text-surface-400">{partnerTyping ? 'Stranger is typing…' : 'Connected'}</p>
             )}
-            {partnerDisconnected && (
-              <p className="text-xs text-red-400">Stranger has disconnected</p>
-            )}
+            {partnerDisconnected && <p className="text-xs text-brand-400">Stranger has disconnected</p>}
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {status === 'paired' && (
             <>
-              <button
-                onClick={handleSkip}
-                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-500" onClick={handleSkip}>
                 Skip
-              </button>
-              <button
-                onClick={handleDisconnect}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
+              </Button>
+              <Button size="sm" variant="danger" onClick={handleDisconnect}>
                 End Chat
-              </button>
+              </Button>
             </>
           )}
           {status === 'searching' && (
-            <button
-              onClick={() => {
-                if (session) {
-                  endAnonymousSession(session.session_id);
-                }
-                cleanup();
-                setStatus('idle');
-              }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
-            >
+            <Button size="sm" variant="danger" onClick={handleSkip}>
               Cancel
-            </button>
+            </Button>
           )}
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button onClick={onClose} className="text-surface-400 transition-colors hover:text-white" aria-label="Close anonymous chat">
+            <XIcon className="h-6 w-6" />
           </button>
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 scrollbar-thin">
         {status === 'idle' && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-6">
-              <span className="text-white font-bold text-4xl">?</span>
+          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+            <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-4xl font-bold text-white">
+              ?
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Anonymous Chat</h3>
-            <p className="text-gray-400 mb-6 max-w-md">
-              Connect with a random stranger for a 1-on-1 anonymous conversation. 
-              Chats are temporary and will be archived when you disconnect.
+            <h3 className="mb-2 text-2xl font-bold text-white">Anonymous Chat</h3>
+            <p className="mb-6 max-w-md text-surface-400">
+              Connect with a random stranger for a 1-on-1 anonymous conversation. Chats are temporary and archived when
+              you disconnect.
             </p>
             <button
               onClick={handleStartSearch}
-              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-lg transition-all transform hover:scale-105"
+              className="rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-3 font-bold text-white transition-transform hover:scale-105"
             >
               Start Chatting
             </button>
@@ -366,69 +243,50 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
         )}
 
         {status === 'searching' && (
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500 mb-4"></div>
-            <p className="text-gray-400 text-lg">Looking for someone to chat with...</p>
+          <div className="flex h-full flex-col items-center justify-center">
+            <Spinner size="h-16 w-16" className="mb-4 text-purple-500" />
+            <p className="text-lg text-surface-400">Looking for someone to chat with…</p>
           </div>
         )}
 
         {status === 'paired' && messages.length === 0 && (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-gray-400 bg-gray-800 rounded-lg p-6 max-w-md">
-              <p className="text-lg font-semibold text-white mb-2">You're now chatting with a stranger!</p>
+          <div className="flex h-full items-center justify-center">
+            <div className="max-w-md rounded-2xl bg-surface-900 p-6 text-center text-surface-400">
+              <ChatBubbleIcon className="mx-auto mb-2 h-10 w-10 text-purple-400" />
+              <p className="mb-2 text-lg font-semibold text-white">You're now chatting with a stranger!</p>
               <p className="text-sm">Say hello and start your conversation.</p>
-              <p className="text-xs mt-4 text-gray-500">
-                ⚠️ Chat will be archived when either person disconnects
-              </p>
+              <p className="mt-4 text-xs text-surface-500">⚠️ Chat will be archived when either person disconnects</p>
             </div>
           </div>
         )}
 
-        {status === 'paired' && messages.map((msg) => {
-          const isMyMessage = msg.sender_id === user?.id;
-          return (
-            <div
-              key={msg.id}
-              className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-[70%] ${isMyMessage ? 'order-2' : 'order-1'}`}>
-                <div
-                  className={`rounded-lg p-3 ${
-                    isMyMessage
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-800 text-gray-100'
-                  }`}
-                >
-                  <p className="text-xs font-semibold mb-1 opacity-70">
-                    {isMyMessage ? getMyName() : getPartnerName()}
-                  </p>
-                  <p className="break-words">{msg.content}</p>
-                  <p className="text-xs mt-1 opacity-60">
-                    {formatTimeAgo(msg.created_at)}
-                  </p>
+        {status === 'paired' &&
+          messages.map((msg) => {
+            const mine = msg.sender_id === user?.id;
+            return (
+              <div key={msg.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[70%] rounded-2xl p-3 ${mine ? 'bg-purple-600 text-white' : 'bg-surface-800 text-surface-100'}`}>
+                  <p className="mb-1 text-xs font-semibold opacity-70">{mine ? myName : partnerName}</p>
+                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  <p className="mt-1 text-xs opacity-60">{formatTimeAgo(msg.created_at)}</p>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
         {status === 'ended' && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-24 h-24 rounded-full bg-gray-800 flex items-center justify-center mb-6">
-              <span className="text-gray-500 font-bold text-4xl">✓</span>
+          <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+            <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-surface-800 text-4xl font-bold text-surface-500">
+              ✓
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Chat Ended</h3>
-            <p className="text-gray-400 mb-6">
-              {partnerDisconnected 
-                ? 'Your partner has disconnected.' 
-                : 'You have ended the chat.'}
+            <h3 className="mb-2 text-2xl font-bold text-white">Chat Ended</h3>
+            <p className="mb-6 text-surface-400">
+              {partnerDisconnected ? 'Your partner has disconnected.' : 'You have ended the chat.'}
             </p>
-            <p className="text-sm text-gray-500 mb-6">
-              This conversation has been archived.
-            </p>
+            <p className="mb-6 text-sm text-surface-500">This conversation has been archived.</p>
             <button
               onClick={handleStartSearch}
-              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-lg transition-all"
+              className="rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-3 font-bold text-white transition-transform hover:scale-105"
             >
               Start New Chat
             </button>
@@ -438,15 +296,8 @@ const AnonymousChat: React.FC<AnonymousChatProps> = ({ onClose }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
       {status === 'paired' && !partnerDisconnected && (
-        <div className="border-t border-gray-700 bg-gray-800 p-4">
-          <MessageInput
-            onSendMessage={handleSendMessage}
-            onTyping={handleTyping}
-            placeholder="Type a message..."
-          />
-        </div>
+        <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} placeholder="Type a message…" />
       )}
     </div>
   );

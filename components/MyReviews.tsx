@@ -3,6 +3,8 @@ import { MovieReview } from '../types';
 import { getUserReviews } from '../supabaseApi';
 import { fetchMovieDetails } from '../api';
 import { StarIcon } from './icons';
+import { Badge, Card } from './ui';
+import { POSTER_FALLBACK, handleImageError } from '../utils/images';
 
 interface MyReviewsProps {
   userId: string;
@@ -24,9 +26,7 @@ const MyReviews: React.FC<MyReviewsProps> = ({ userId, onSelectMovie }) => {
       setLoading(true);
       try {
         const userReviews = await getUserReviews(userId);
-        
-        // Fetch movie details for each review
-        const reviewsWithMovies = await Promise.all(
+        const withMovies = await Promise.all(
           userReviews.map(async (review) => {
             try {
               const movie = await fetchMovieDetails(review.tmdb_movie_id);
@@ -34,7 +34,7 @@ const MyReviews: React.FC<MyReviewsProps> = ({ userId, onSelectMovie }) => {
                 ...review,
                 movieTitle: movie?.title,
                 moviePoster: movie?.posterUrl,
-                movieRating: movie?.rating
+                movieRating: movie?.rating,
               };
             } catch (error) {
               console.error('Failed to fetch movie details for review:', error);
@@ -42,25 +42,23 @@ const MyReviews: React.FC<MyReviewsProps> = ({ userId, onSelectMovie }) => {
             }
           })
         );
-        
-        setReviews(reviewsWithMovies);
+        setReviews(withMovies);
       } catch (error) {
         console.error('Failed to fetch user reviews:', error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchReviews();
   }, [userId]);
 
   if (loading) {
     return (
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">My Reviews</h2>
+        <h2 className="mb-4 text-2xl font-bold text-surface-900 dark:text-white">My Reviews</h2>
         <div className="space-y-4">
           {[1, 2].map((i) => (
-            <div key={i} className="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-lg h-32"></div>
+            <div key={i} className="skeleton h-32 rounded-2xl" />
           ))}
         </div>
       </div>
@@ -70,85 +68,70 @@ const MyReviews: React.FC<MyReviewsProps> = ({ userId, onSelectMovie }) => {
   if (reviews.length === 0) {
     return (
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">My Reviews</h2>
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-8 text-center">
-          <p className="text-gray-500 dark:text-gray-400">You haven't reviewed any movies yet.</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-            Start by hovering over a movie and clicking "Write Review"
+        <h2 className="mb-4 text-2xl font-bold text-surface-900 dark:text-white">My Reviews</h2>
+        <Card className="py-8 text-center">
+          <p className="text-surface-500 dark:text-surface-400">You haven't reviewed any movies yet.</p>
+          <p className="mt-2 text-sm text-surface-400 dark:text-surface-500">
+            Open a movie and tap “Write Review” to share your thoughts.
           </p>
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="mb-8">
-      <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+      <h2 className="mb-4 text-2xl font-bold text-surface-900 dark:text-white">
         My Reviews ({reviews.length})
       </h2>
       <div className="space-y-4">
         {reviews.map((review) => (
-          <div 
-            key={review.id}
-            className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md hover:shadow-lg transition-shadow"
-          >
+          <Card key={review.id} className="transition-shadow hover:shadow-lg">
             <div className="flex gap-4">
-              {/* Movie Poster */}
-              <button
-                onClick={() => onSelectMovie(review.tmdb_movie_id)}
-                className="flex-shrink-0"
-              >
+              <button onClick={() => onSelectMovie(review.tmdb_movie_id)} className="flex-shrink-0">
                 <img
-                  src={review.moviePoster || 'https://via.placeholder.com/80x120.png?text=No+Image'}
+                  src={review.moviePoster || POSTER_FALLBACK}
                   alt={review.movieTitle || 'Movie'}
-                  className="w-20 h-28 rounded object-cover hover:opacity-80 transition-opacity"
+                  onError={handleImageError(POSTER_FALLBACK)}
+                  className="h-28 w-20 rounded-xl object-cover transition-opacity hover:opacity-80"
                 />
               </button>
 
-              {/* Review Content */}
-              <div className="flex-1 min-w-0">
-                <button
-                  onClick={() => onSelectMovie(review.tmdb_movie_id)}
-                  className="text-left group"
-                >
-                  <h3 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+              <div className="min-w-0 flex-1">
+                <button onClick={() => onSelectMovie(review.tmdb_movie_id)} className="group text-left">
+                  <h3 className="truncate text-lg font-bold text-surface-900 transition-colors group-hover:text-brand-500 dark:text-white">
                     {review.movieTitle || `Movie #${review.tmdb_movie_id}`}
                   </h3>
                 </button>
 
-                {/* Rating Display */}
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="flex items-center bg-yellow-400/20 dark:bg-yellow-400/30 px-3 py-1 rounded">
-                    <StarIcon className="w-5 h-5 text-yellow-400 fill-yellow-400 mr-1" />
-                    <span className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
-                      {review.rating}/10
-                    </span>
-                  </div>
-                  {review.movieRating && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge tone="amber">
+                    <StarIcon className="h-4 w-4" /> {review.rating}/10
+                  </Badge>
+                  {review.movieRating != null && (
+                    <span className="text-sm text-surface-500 dark:text-surface-400">
                       TMDB: {review.movieRating.toFixed(1)}
                     </span>
                   )}
                 </div>
 
-                {/* Review Text */}
                 {review.review_text && (
-                  <p className="mt-3 text-gray-700 dark:text-gray-300 text-sm leading-relaxed line-clamp-3">
+                  <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-surface-700 dark:text-surface-300">
                     {review.review_text}
                   </p>
                 )}
 
-                {/* Date */}
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Reviewed {new Date(review.created_at).toLocaleDateString('en-US', {
+                <p className="mt-2 text-xs text-surface-500 dark:text-surface-400">
+                  Reviewed{' '}
+                  {new Date(review.created_at).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
-                    day: 'numeric'
+                    day: 'numeric',
                   })}
                 </p>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>
